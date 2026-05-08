@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
 <title>SF Ship · Vessel Data Entry</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -30,8 +27,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
     background: var(--paper); color: var(--ink);
-    font-family: 'Inter Tight', -apple-system, sans-serif;
-    font-size: 16px; line-height: 1.5; min-height: 100vh;
+    font-family: Calibri, sans-serif;
+    font-size: 19px; line-height: 1.5; min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
   body {
@@ -53,20 +50,20 @@
   .logo-mark {
     width: 32px; height: 32px; border: 1.5px solid var(--bone);
     display: grid; place-items: center;
-    font-family: 'Bodoni Moda', serif; font-weight: 700; font-size: 16px;
+    font-family: Calibri, sans-serif; font-weight: 700; font-size: 19px;
     letter-spacing: -0.5px; flex-shrink: 0;
   }
   .logo-text {
-    font-family: 'Bodoni Moda', serif; font-size: 15px; font-weight: 500;
+    font-family: Calibri, sans-serif; font-size: 18px; font-weight: 500;
     letter-spacing: 0.5px; line-height: 1.1;
   }
   .logo-text small {
-    display: block; font-family: 'JetBrains Mono', monospace;
-    font-size: 9px; font-weight: 400; letter-spacing: 1.5px;
+    display: block; font-family: Calibri, sans-serif;
+    font-size: 12px; font-weight: 400; letter-spacing: 1.5px;
     color: rgba(244,239,230,0.6); margin-top: 2px; text-transform: uppercase;
   }
   .status-pill {
-    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-family: Calibri, sans-serif; font-size: 13px;
     font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
     padding: 6px 10px; border-radius: 2px;
     border: 1px solid rgba(244,239,230,0.3);
@@ -85,8 +82,8 @@
   }
   .tab {
     flex: 1; padding: 12px 4px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; font-weight: 500; letter-spacing: 1.2px;
+    font-family: Calibri, sans-serif;
+    font-size: 13px; font-weight: 500; letter-spacing: 1.2px;
     text-transform: uppercase;
     color: rgba(244,239,230,0.55);
     background: none; border: none;
@@ -96,7 +93,7 @@
   .tab.active { color: var(--bone); border-bottom-color: var(--rust); }
   .tab .badge {
     display: inline-block; background: var(--rust); color: var(--bone);
-    font-size: 9px; padding: 1px 5px; border-radius: 8px;
+    font-size: 12px; padding: 1px 5px; border-radius: 8px;
     margin-left: 3px; font-weight: 700;
   }
 
@@ -114,10 +111,10 @@
     padding: 14px 16px; margin-bottom: 16px;
     box-shadow: var(--shadow);
   }
-  .auth-card h3 { font-family: 'Bodoni Moda', serif; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-  .auth-card p { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+  .auth-card h3 { font-family: Calibri, sans-serif; font-size: 19px; font-weight: 600; margin-bottom: 4px; }
+  .auth-card p { font-size: 15px; color: var(--ink-soft); margin-bottom: 10px; }
   .auth-status {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-family: Calibri, sans-serif; font-size: 14px;
     color: var(--green); margin-bottom: 8px;
   }
   .auth-status.signed-out { color: var(--amber); }
@@ -132,16 +129,16 @@
     background: rgba(10,37,64,0.06); border-color: rgba(10,37,64,0.2);
   }
   .draft-bar-label {
-    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-family: Calibri, sans-serif; font-size: 13px;
     letter-spacing: 1.2px; text-transform: uppercase;
     color: var(--amber);
   }
   .draft-bar.editing .draft-bar-label { color: var(--navy); }
   .draft-bar-name {
-    font-family: 'Bodoni Moda', serif; font-size: 14px; font-weight: 600;
+    font-family: Calibri, sans-serif; font-size: 17px; font-weight: 600;
   }
   .draft-bar-cancel {
-    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-family: Calibri, sans-serif; font-size: 13px;
     letter-spacing: 1px; padding: 4px 8px;
     background: none; border: 1px solid var(--line);
     cursor: pointer; color: var(--ink-soft);
@@ -162,22 +159,22 @@
   details.section summary::-webkit-details-marker { display: none; }
   details.section summary::before {
     content: "▸"; color: var(--rust); margin-right: 10px;
-    font-size: 14px; transition: transform 0.18s;
+    font-size: 17px; transition: transform 0.18s;
     display: inline-block;
   }
   details.section[open] summary::before { transform: rotate(90deg); }
   .sec-title-wrap { flex: 1; }
   .sec-num {
-    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    font-family: Calibri, sans-serif; font-size: 12px;
     letter-spacing: 1.5px; color: var(--ink-soft);
     text-transform: uppercase;
   }
   .sec-title {
-    font-family: 'Bodoni Moda', serif; font-size: 16px; font-weight: 600;
+    font-family: Calibri, sans-serif; font-size: 19px; font-weight: 700;
     margin-top: 1px;
   }
   .sec-progress {
-    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-family: Calibri, sans-serif; font-size: 13px;
     color: var(--ink-soft); padding: 3px 8px;
     background: var(--bone); border-radius: 2px;
     white-space: nowrap;
@@ -187,18 +184,18 @@
 
   .field { margin-bottom: 12px; }
   .field label {
-    display: block; font-size: 12px; font-weight: 500;
+    display: block; font-size: 15px; font-weight: 700;
     color: var(--navy); margin-bottom: 4px; letter-spacing: 0.3px;
   }
   .field label .opt {
-    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    font-family: Calibri, sans-serif; font-size: 12px;
     font-weight: 400; color: var(--ink-soft);
     margin-left: 4px; letter-spacing: 1px;
   }
   .field input, .field select, .field textarea {
     width: 100%; padding: 10px 11px;
     border: 1px solid var(--line); background: #fff;
-    font-family: 'Inter Tight', sans-serif; font-size: 15px;
+    font-family: Calibri, sans-serif; font-size: 18px;
     color: var(--ink); border-radius: 2px;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
@@ -206,11 +203,71 @@
     outline: none; border-color: var(--navy);
     box-shadow: 0 0 0 3px rgba(10,37,64,0.08);
   }
-  .field input[type="date"] { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
-  .field input[type="number"] { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+  .field input[type="date"] { font-family: Calibri, sans-serif; font-size: 17px; }
+  .field input[type="number"] { font-family: Calibri, sans-serif; font-size: 17px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .field-row .field { margin-bottom: 8px; }
   @media (max-width: 360px) { .field-row { grid-template-columns: 1fr; } }
+
+  /* Autocomplete dropdown (for company name, address, etc.) */
+  .field.has-recall { position: relative; }
+  .recall-dropdown {
+    position: absolute;
+    top: calc(100% - 1px); left: 0; right: 0;
+    background: #fff;
+    border: 1px solid var(--navy);
+    border-radius: 0 0 4px 4px;
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 4px 14px rgba(10,37,64,0.15);
+    display: none;
+  }
+  .recall-dropdown.open { display: block; }
+  .recall-dropdown-header {
+    padding: 6px 10px;
+    font-family: Calibri, sans-serif;
+    font-size: 12px; color: var(--ink-soft);
+    background: var(--bone);
+    border-bottom: 1px solid var(--line-soft);
+    font-style: italic;
+  }
+  .recall-item {
+    display: flex; align-items: center;
+    padding: 0;
+    border-bottom: 1px solid var(--line-soft);
+    cursor: pointer;
+  }
+  .recall-item:last-child { border-bottom: none; }
+  .recall-item:hover { background: var(--bone); }
+  .recall-item-text {
+    flex: 1; padding: 10px 12px;
+    font-family: Calibri, sans-serif;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .recall-item-delete {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    display: grid; place-items: center;
+    cursor: pointer;
+    color: var(--red);
+    font-family: Calibri, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--line-soft);
+  }
+  .recall-item-delete:hover { background: rgba(164,22,26,0.08); }
+  .recall-empty {
+    padding: 14px 12px;
+    text-align: center;
+    font-family: Calibri, sans-serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
 
   /* Work item checkbox (visual checkbox for done/not done) */
   .work-item { align-items: center; }
@@ -226,7 +283,7 @@
   }
   .work-checkbox .work-check-mark {
     color: transparent;
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 700;
     line-height: 1;
     transition: color 0.12s;
@@ -247,13 +304,13 @@
     background: var(--bone); border: 1px dashed var(--line);
   }
   .loc-toggle-label {
-    width: 100%; font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; font-weight: 600; letter-spacing: 1.2px;
+    width: 100%; font-family: Calibri, sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: 1.2px;
     color: var(--ink-soft); text-transform: uppercase;
     margin-bottom: 4px;
   }
   .loc-pill {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-family: Calibri, sans-serif; font-size: 14px;
     font-weight: 600; letter-spacing: 0.5px;
     padding: 8px 14px; cursor: pointer;
     border: 1px solid var(--line); background: #fff;
@@ -280,24 +337,24 @@
   /* Measurement grid */
   .grid-block { margin-bottom: 16px; }
   .grid-title {
-    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-family: Calibri, sans-serif; font-size: 13px;
     font-weight: 700; letter-spacing: 1.5px;
     color: var(--rust); margin: 12px 0 6px;
     text-transform: uppercase;
   }
   .grid-sub {
-    font-size: 11px; color: var(--ink-soft); margin-bottom: 6px;
+    font-size: 14px; color: var(--ink-soft); margin-bottom: 6px;
     font-style: italic;
   }
   .meas-table {
     width: 100%; border-collapse: collapse;
-    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    font-family: Calibri, sans-serif; font-size: 15px;
   }
   .meas-table th {
     background: var(--bone); padding: 6px 4px;
     border: 1px solid var(--line);
-    font-weight: 500; color: var(--ink-soft);
-    font-size: 10px; letter-spacing: 0.5px;
+    font-weight: 700; color: var(--ink);
+    font-size: 13px; letter-spacing: 0.5px;
     text-transform: uppercase;
   }
   .meas-table td {
@@ -306,13 +363,13 @@
   }
   .meas-table td.label {
     background: var(--bone); padding: 4px 6px;
-    font-size: 11px; color: var(--ink-soft);
+    font-size: 14px; color: var(--ink-soft);
     text-align: right; white-space: nowrap;
-    font-weight: 500;
+    font-weight: 700;
   }
   .meas-table input {
     width: 100%; border: none; padding: 8px 4px;
-    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    font-family: Calibri, sans-serif; font-size: 16px;
     text-align: center; background: transparent;
   }
   .meas-table input:focus {
@@ -329,18 +386,18 @@
     display: flex; justify-content: space-between; align-items: center;
     padding: 6px 10px; background: var(--bone);
     border-bottom: 1px solid var(--line);
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-family: Calibri, sans-serif; font-size: 14px;
     font-weight: 600; letter-spacing: 1px;
   }
   .shackle-progress {
-    font-size: 10px; color: var(--ink-soft);
+    font-size: 13px; color: var(--ink-soft);
   }
   .shackle-side {
     padding: 6px 8px; border-bottom: 1px dashed var(--line-soft);
   }
   .shackle-side:last-child { border-bottom: none; }
   .shackle-side-label {
-    font-size: 10px; font-weight: 600; color: var(--navy);
+    font-size: 13px; font-weight: 600; color: var(--navy);
     letter-spacing: 1px; text-transform: uppercase;
     margin-bottom: 4px;
   }
@@ -349,14 +406,14 @@
     gap: 4px; align-items: center; margin-bottom: 3px;
   }
   .shackle-row-label {
-    font-size: 10px; color: var(--ink-soft);
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: var(--ink-soft); font-weight: 700;
+    font-family: Calibri, sans-serif;
     width: 28px;
   }
   .shackle-row input {
     width: 100%; padding: 6px 6px;
     border: 1px solid var(--line); background: #fff;
-    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    font-family: Calibri, sans-serif; font-size: 15px;
     text-align: center; border-radius: 2px;
   }
   .shackle-row input:focus {
@@ -375,7 +432,7 @@
   }
   .checklist-group-head {
     background: var(--bone); padding: 6px 10px;
-    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-family: Calibri, sans-serif; font-size: 13px;
     font-weight: 700; letter-spacing: 1.2px;
     color: var(--navy); text-transform: uppercase;
     border-bottom: 1px solid var(--line);
@@ -384,7 +441,7 @@
     display: flex; gap: 4px; flex-shrink: 0;
   }
   .check-pill {
-    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    font-family: Calibri, sans-serif; font-size: 12px;
     font-weight: 600; letter-spacing: 0.5px;
     padding: 5px 7px; cursor: pointer;
     border: 1px solid var(--line);
@@ -396,7 +453,7 @@
   .check-pill.active.failed { background: var(--red); color: var(--bone); border-color: var(--red); }
   .check-pill.active.na { background: var(--ink-soft); color: var(--bone); border-color: var(--ink-soft); }
   .check-label {
-    flex: 1; font-size: 13px; line-height: 1.35;
+    flex: 1; font-size: 16px; line-height: 1.35; font-weight: 700;
     color: var(--ink); padding-top: 5px;
   }
   .work-item-location {
@@ -405,8 +462,8 @@
   .work-item-location input {
     width: 100%; padding: 5px 8px;
     border: 1px solid var(--line); background: var(--paper);
-    font-size: 12px; border-radius: 2px;
-    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; border-radius: 2px;
+    font-family: Calibri, sans-serif;
   }
 
   /* Sticky action bar */
@@ -421,8 +478,8 @@
   .actions .btn { flex: 1; }
   .btn {
     padding: 13px 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+    font-family: Calibri, sans-serif;
+    font-size: 14px; font-weight: 700; letter-spacing: 1.2px;
     text-transform: uppercase; border: none; cursor: pointer;
     border-radius: 2px;
     transition: transform 0.08s, background 0.15s;
@@ -454,7 +511,7 @@
     text-align: center; padding: 50px 20px; color: var(--ink-soft);
   }
   .list-empty .ico {
-    font-family: 'Bodoni Moda', serif; font-style: italic;
+    font-family: Calibri, sans-serif; font-style: italic;
     font-size: 56px; color: var(--line);
     margin-bottom: 12px; line-height: 1;
   }
@@ -474,11 +531,11 @@
     margin-bottom: 3px;
   }
   .list-proj {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-family: Calibri, sans-serif; font-size: 14px;
     color: var(--ink-soft); letter-spacing: 1px;
   }
   .list-status {
-    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    font-family: Calibri, sans-serif; font-size: 12px;
     text-transform: uppercase; letter-spacing: 1.5px;
     padding: 2px 7px; border-radius: 2px;
     background: var(--bone); color: var(--ink-soft);
@@ -489,13 +546,13 @@
   .list-status.error { background: rgba(164,22,26,0.12); color: var(--red); }
   .list-status.syncing { background: rgba(196,121,0,0.12); color: var(--amber); }
   .list-vessel {
-    font-family: 'Bodoni Moda', serif; font-size: 17px;
+    font-family: Calibri, sans-serif; font-size: 20px;
     font-weight: 600; margin-bottom: 2px;
   }
-  .list-meta { font-size: 12px; color: var(--ink-soft); }
+  .list-meta { font-size: 15px; color: var(--ink-soft); }
   .list-fill {
-    margin-top: 6px; font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: var(--ink-soft);
+    margin-top: 6px; font-family: Calibri, sans-serif;
+    font-size: 14px; color: var(--ink-soft);
   }
   .list-actions {
     display: flex; gap: 6px; flex-wrap: wrap;
@@ -503,8 +560,8 @@
     border-top: 1px dashed var(--line-soft);
   }
   .list-actions button {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; font-weight: 600; letter-spacing: 0.8px;
+    font-family: Calibri, sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.8px;
     text-transform: uppercase; padding: 6px 10px;
     background: none; border: 1px solid var(--line);
     color: var(--ink-soft); cursor: pointer; border-radius: 2px;
@@ -519,7 +576,7 @@
     color: var(--red); border-color: rgba(164,22,26,0.3);
   }
   .list-error-msg {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    font-family: Calibri, sans-serif; font-size: 14px;
     color: var(--red); margin-top: 6px; padding: 6px 8px;
     background: rgba(164,22,26,0.06); border-radius: 2px;
   }
@@ -530,10 +587,10 @@
     padding: 14px; margin-bottom: 12px;
   }
   .setting-group h4 {
-    font-family: 'Bodoni Moda', serif; font-size: 16px;
+    font-family: Calibri, sans-serif; font-size: 19px;
     font-weight: 600; margin-bottom: 4px;
   }
-  .setting-group p { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+  .setting-group p { font-size: 15px; color: var(--ink-soft); margin-bottom: 10px; }
 
   /* Toasts */
   .toast-wrap {
@@ -544,7 +601,7 @@
   .toast {
     background: var(--navy-deep); color: var(--bone);
     padding: 10px 16px; border-radius: 2px;
-    font-size: 13px; font-weight: 500;
+    font-size: 16px; font-weight: 500;
     box-shadow: 0 6px 20px rgba(0,0,0,0.25);
     border-left: 3px solid var(--rust);
     animation: slideUp 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
@@ -559,8 +616,8 @@
   @keyframes fadeOut { to { opacity: 0; transform: translateY(-8px); } }
 
   .helper {
-    font-family: 'Bodoni Moda', serif; font-style: italic;
-    font-size: 13px; color: var(--ink-soft);
+    font-family: Calibri, sans-serif; font-style: italic;
+    font-size: 16px; color: var(--ink-soft);
     margin: 8px 0 14px; padding: 10px 14px;
     border-left: 2px solid var(--rust);
     background: rgba(181,74,31,0.04);
@@ -761,7 +818,24 @@ const SCHEMA = [
       { id: 'sAP', label: 'Stbd Upper AP', col: 'T' },
       { id: 'sLBP', label: 'Stbd Lower BP', col: 'V' },
       { id: 'sLAP', label: 'Stbd Lower AP', col: 'X' }
-    ]
+    ],
+    // Bearing Details grid (rows 32-35 in RUDDER tab):
+    // 4 fields × 6 columns (Center STOCK/PINTLE, Port STOCK/PINTLE, Stbd STOCK/PINTLE)
+    // Columns are: B/F = Center, J/N = Port, R/V = Stbd
+    bearingDetails: {
+      label: 'Bearing Details',
+      fields: [
+        { id: 'shaftDiameter', label: 'Shaft Diameter', row: 32 },
+        { id: 'bearingID',     label: 'Bearing I.D.',   row: 33 },
+        { id: 'bearingLength', label: 'Bearing Length', row: 34 },
+        { id: 'bearingMat',    label: 'Bearing Mat.',   row: 35 }
+      ],
+      sides: [
+        { id: 'center', label: 'Center',    stockCol: 'B', pintleCol: 'F' },
+        { id: 'port',   label: 'Portside',  stockCol: 'J', pintleCol: 'N' },
+        { id: 'stbd',   label: 'Starboard', stockCol: 'R', pintleCol: 'V' }
+      ]
+    }
   },
 
   // TAILSHAFT — REMOVED (handled separately in spreadsheet, not via app)
@@ -885,7 +959,24 @@ const SCHEMA = [
       { id: 's_ibAP', label: 'Stbd Inboard AP', col: 'R' },
       { id: 's_stBP', label: 'Stbd Strut BP', col: 'S' },
       { id: 's_stAP', label: 'Stbd Strut AP', col: 'T' }
-    ]
+    ],
+    // Bearing Details grid (rows 23-26 in PROPELLER tab):
+    // 4 fields × 9 columns (3 sides × 3 positions: Outboard / Inboard / Strut)
+    // Column starts: Center: C/E/G; Port: I/K/M; Stbd: O/Q/S
+    bearingDetails: {
+      label: 'Bearing Details',
+      fields: [
+        { id: 'shaftDiameter', label: 'Shaft Diameter',   row: 23 },
+        { id: 'shaftLength',   label: 'Shaft Length',     row: 24 },
+        { id: 'bearingID',     label: 'Bearing I.D.',     row: 25 },
+        { id: 'bearingMat',    label: 'Bearing Material', row: 26 }
+      ],
+      sides: [
+        { id: 'center', label: 'Center',    outboardCol: 'C', inboardCol: 'E', strutCol: 'G' },
+        { id: 'port',   label: 'Portside',  outboardCol: 'I', inboardCol: 'K', strutCol: 'M' },
+        { id: 'stbd',   label: 'Starboard', outboardCol: 'O', inboardCol: 'Q', strutCol: 'S' }
+      ]
+    }
   },
 
   // WORK DONE — checklist of predefined work items + optional location
@@ -989,7 +1080,16 @@ const SCHEMA = [
 const CONFIG_KEY = 'sfship_config_v2';
 const DB_NAME = 'sfship_db_v2';
 const DB_STORE = 'entries';
+const DB_AUTO_STORE = 'autocomplete';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
+
+// Fields that should have autocomplete from previous entries
+const AUTOCOMPLETE_FIELDS = new Set([
+  'shipsData__companyName',
+  'shipsData__companyAddress',
+  'shipsData__transmittedBy',
+  'shipsData__position'
+]);
 
 let config = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
 let tokenClient = null;
@@ -999,10 +1099,11 @@ let editingId = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
+    const req = indexedDB.open(DB_NAME, 2);
+    req.onupgradeneeded = (ev) => {
       const db = req.result;
       if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(DB_AUTO_STORE)) db.createObjectStore(DB_AUTO_STORE, { keyPath: 'key' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -1040,6 +1141,63 @@ async function dbDelete(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DB_STORE, 'readwrite');
     tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// Autocomplete (recall) helpers — store remembered values keyed by `field|value`
+async function recallAdd(field, value) {
+  const v = (value || '').trim();
+  if (!v) return;
+  const key = field + '|' + v.toLowerCase();
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_AUTO_STORE, 'readwrite');
+    const store = tx.objectStore(DB_AUTO_STORE);
+    const getReq = store.get(key);
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      const record = {
+        key, field, value: v,
+        count: (existing?.count || 0) + 1,
+        lastUsed: new Date().toISOString()
+      };
+      store.put(record);
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function recallList(field) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_AUTO_STORE, 'readonly');
+    const req = tx.objectStore(DB_AUTO_STORE).getAll();
+    req.onsuccess = () => {
+      const all = req.result || [];
+      const matching = all.filter(r => r.field === field);
+      // Sort by lastUsed (most recent first)
+      matching.sort((a, b) => (b.lastUsed || '').localeCompare(a.lastUsed || ''));
+      resolve(matching);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function recallDelete(key) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_AUTO_STORE, 'readwrite');
+    tx.objectStore(DB_AUTO_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function recallClearAll() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_AUTO_STORE, 'readwrite');
+    tx.objectStore(DB_AUTO_STORE).clear();
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -1237,18 +1395,26 @@ function buildFieldList(sec) {
 function buildField(f, sectionId) {
   const div = document.createElement('div');
   div.className = 'field';
+  const fieldName = `${sectionId}__${f.id}`;
+  const hasRecall = AUTOCOMPLETE_FIELDS.has(fieldName);
+  if (hasRecall) div.classList.add('has-recall');
+
   const optBit = f.required ? '<span class="opt">REQUIRED</span>' : '';
+  const autoAttr = hasRecall ? ` data-recall="${fieldName}" autocomplete="off"` : '';
   let input;
   if (f.type === 'textarea') {
-    input = `<textarea name="${sectionId}__${f.id}" rows="2" placeholder="${escapeHtml(f.placeholder || '')}"></textarea>`;
+    input = `<textarea name="${fieldName}" rows="2" placeholder="${escapeHtml(f.placeholder || '')}"${autoAttr}></textarea>`;
   } else if (f.type === 'date') {
-    input = `<input type="date" name="${sectionId}__${f.id}" />`;
+    input = `<input type="date" name="${fieldName}" />`;
   } else if (f.type === 'number') {
-    input = `<input type="number" inputmode="decimal" step="any" name="${sectionId}__${f.id}" placeholder="${escapeHtml(f.placeholder || '')}" />`;
+    input = `<input type="number" inputmode="decimal" step="any" name="${fieldName}" placeholder="${escapeHtml(f.placeholder || '')}" />`;
   } else {
-    input = `<input type="text" name="${sectionId}__${f.id}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required?'required':''} />`;
+    input = `<input type="text" name="${fieldName}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required?'required':''}${autoAttr} />`;
   }
-  div.innerHTML = `<label>${escapeHtml(f.label)} ${optBit}</label>${input}`;
+  const dropdownHtml = hasRecall
+    ? `<div class="recall-dropdown" data-recall-dropdown="${fieldName}"></div>`
+    : '';
+  div.innerHTML = `<label>${escapeHtml(f.label)} ${optBit}</label>${input}${dropdownHtml}`;
   return div;
 }
 
@@ -1307,6 +1473,37 @@ function buildRudderGrid(sec) {
       blockDiv.appendChild(tbl);
     }
     wrap.appendChild(blockDiv);
+  }
+
+  // Bearing Details — one table per side (Center / Port / Stbd), each shows STOCK and PINTLE columns
+  if (sec.bearingDetails) {
+    const bd = sec.bearingDetails;
+    const bearingWrap = document.createElement('div');
+    bearingWrap.className = 'grid-block';
+    bearingWrap.innerHTML = `<div class="grid-title">${escapeHtml(bd.label)}</div>`;
+
+    for (const side of bd.sides) {
+      const tbl = document.createElement('table');
+      tbl.className = 'meas-table';
+      tbl.style.marginBottom = '10px';
+      tbl.style.display = 'none';
+      tbl.dataset.locGroup = side.id;
+      tbl.dataset.locSection = sec.id;
+      let html = `<tr><th colspan="3">${escapeHtml(side.label)}</th></tr>
+        <tr><th></th><th>STOCK</th><th>PINTLE</th></tr>`;
+      for (const f of bd.fields) {
+        const stockName  = `${sec.id}__bearing_${f.id}_${side.id}_stock`;
+        const pintleName = `${sec.id}__bearing_${f.id}_${side.id}_pintle`;
+        html += `<tr>
+          <td class="label">${escapeHtml(f.label)}</td>
+          <td><input type="text" name="${stockName}" /></td>
+          <td><input type="text" name="${pintleName}" /></td>
+        </tr>`;
+      }
+      tbl.innerHTML = html;
+      bearingWrap.appendChild(tbl);
+    }
+    wrap.appendChild(bearingWrap);
   }
 
   // Empty-state message when nothing is toggled yet
@@ -1381,6 +1578,39 @@ function buildClearanceGrid(sec) {
     }
     tbl.innerHTML = html;
     wrap.appendChild(tbl);
+  }
+
+  // Propeller Bearing Details — 3 columns per side (Outboard / Inboard / Strut), 4 rows (fields)
+  if (sec.bearingDetails) {
+    const bd = sec.bearingDetails;
+    const bearingWrap = document.createElement('div');
+    bearingWrap.className = 'grid-block';
+    bearingWrap.innerHTML = `<div class="grid-title">${escapeHtml(bd.label)}</div>`;
+
+    for (const side of bd.sides) {
+      const tbl = document.createElement('table');
+      tbl.className = 'meas-table';
+      tbl.style.marginBottom = '10px';
+      tbl.style.display = 'none';
+      tbl.dataset.locGroup = side.id;
+      tbl.dataset.locSection = sec.id;
+      let html = `<tr><th colspan="4">${escapeHtml(side.label)}</th></tr>
+        <tr><th></th><th>Outboard</th><th>Inboard</th><th>Strut</th></tr>`;
+      for (const f of bd.fields) {
+        const ob = `${sec.id}__bearing_${f.id}_${side.id}_outboard`;
+        const ib = `${sec.id}__bearing_${f.id}_${side.id}_inboard`;
+        const st = `${sec.id}__bearing_${f.id}_${side.id}_strut`;
+        html += `<tr>
+          <td class="label">${escapeHtml(f.label)}</td>
+          <td><input type="text" name="${ob}" /></td>
+          <td><input type="text" name="${ib}" /></td>
+          <td><input type="text" name="${st}" /></td>
+        </tr>`;
+      }
+      tbl.innerHTML = html;
+      bearingWrap.appendChild(tbl);
+    }
+    wrap.appendChild(bearingWrap);
   }
 
   if (useLocToggle) {
@@ -1560,6 +1790,20 @@ function countSectionFilled(sec) {
         }
       }
     }
+    // Bearing details — count only for active sides, 2 cells per row (stock + pintle)
+    if (sec.bearingDetails) {
+      const bd = sec.bearingDetails;
+      for (const f of bd.fields) {
+        for (const side of bd.sides) {
+          if (active.size > 0 && !active.has(side.id)) continue;
+          for (const sub of ['stock', 'pintle']) {
+            total++;
+            const el = document.querySelector(`[name="${sec.id}__bearing_${f.id}_${side.id}_${sub}"]`);
+            if (el && el.value && el.value.trim()) filled++;
+          }
+        }
+      }
+    }
   } else if (sec.type === 'tailshaftGrid' || sec.type === 'propellerGrid') {
     // Both now use location toggles
     const useLoc = (sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid');
@@ -1579,6 +1823,20 @@ function countSectionFilled(sec) {
       total++;
       const el = document.querySelector(`[name="${sec.id}__${r.id}_${c.id}"]`);
       if (el && el.value && el.value.trim()) filled++;
+    }
+    // Propeller bearing details (3 columns per side: outboard / inboard / strut)
+    if (sec.bearingDetails) {
+      const bd = sec.bearingDetails;
+      for (const f of bd.fields) {
+        for (const side of bd.sides) {
+          if (active.size > 0 && !active.has(side.id)) continue;
+          for (const sub of ['outboard', 'inboard', 'strut']) {
+            total++;
+            const el = document.querySelector(`[name="${sec.id}__bearing_${f.id}_${side.id}_${sub}"]`);
+            if (el && el.value && el.value.trim()) filled++;
+          }
+        }
+      }
     }
   } else if (sec.type === 'chainGrid') {
     for (let s = 0; s < sec.shackleCount; s++) {
@@ -1728,6 +1986,9 @@ async function saveEntry(asComplete) {
   if (asComplete) delete entry.errorMsg;
   await dbPut(entry);
 
+  // Remember company/transmitter values for autocomplete
+  await recordAutocompleteFromData(data);
+
   if (asComplete) {
     toast('Marked complete — will sync when online', 'success');
     clearForm(); editingId = null; updateDraftBar();
@@ -1872,11 +2133,37 @@ function buildSheetWrites(data) {
           }
         }
       }
+      // Bearing Details — also write to RUDDER tab
+      if (sec.bearingDetails) {
+        const bd = sec.bearingDetails;
+        for (const f of bd.fields) {
+          for (const side of bd.sides) {
+            const stockVal  = data[`${sec.id}__bearing_${f.id}_${side.id}_stock`] || '';
+            const pintleVal = data[`${sec.id}__bearing_${f.id}_${side.id}_pintle`] || '';
+            if (stockVal) writes.push({ sheet: sec.sheet, range: `${side.stockCol}${f.row}`, value: stockVal });
+            if (pintleVal) writes.push({ sheet: sec.sheet, range: `${side.pintleCol}${f.row}`, value: pintleVal });
+          }
+        }
+      }
     } else if (sec.type === 'tailshaftGrid' || sec.type === 'propellerGrid') {
       for (const r of sec.rows) for (const c of sec.cols) {
         const v = data[`${sec.id}__${r.id}_${c.id}`] || '';
         if (!v) continue;
         writes.push({ sheet: sec.sheet, range: `${c.col}${r.row}`, value: v });
+      }
+      // Propeller Bearing Details — also write to PROPELLER tab (3 columns per side)
+      if (sec.bearingDetails) {
+        const bd = sec.bearingDetails;
+        for (const f of bd.fields) {
+          for (const side of bd.sides) {
+            const ob = data[`${sec.id}__bearing_${f.id}_${side.id}_outboard`] || '';
+            const ib = data[`${sec.id}__bearing_${f.id}_${side.id}_inboard`]  || '';
+            const st = data[`${sec.id}__bearing_${f.id}_${side.id}_strut`]    || '';
+            if (ob) writes.push({ sheet: sec.sheet, range: `${side.outboardCol}${f.row}`, value: ob });
+            if (ib) writes.push({ sheet: sec.sheet, range: `${side.inboardCol}${f.row}`,  value: ib });
+            if (st) writes.push({ sheet: sec.sheet, range: `${side.strutCol}${f.row}`,    value: st });
+          }
+        }
       }
     } else if (sec.type === 'chainGrid') {
       for (let s = 0; s < sec.shackleCount; s++) {
@@ -2318,6 +2605,17 @@ function countOverall(data) {
           if ((data[`${sec.id}__${block.id}_${c.id}_${pos.id}`] || '').toString().trim()) filled++;
         }
       }
+      // Bearing details
+      if (sec.bearingDetails) {
+        const bd = sec.bearingDetails;
+        for (const f of bd.fields) for (const side of bd.sides) {
+          if (active.size > 0 && !active.has(side.id)) continue;
+          for (const sub of ['stock', 'pintle']) {
+            total++;
+            if ((data[`${sec.id}__bearing_${f.id}_${side.id}_${sub}`] || '').toString().trim()) filled++;
+          }
+        }
+      }
     } else if (sec.type === 'tailshaftGrid' || sec.type === 'propellerGrid') {
       const useLoc = (sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid');
       const active = useLoc ? new Set((data[`${sec.id}__locations`] || '').split(',').filter(Boolean)) : new Set();
@@ -2325,6 +2623,17 @@ function countOverall(data) {
         if (useLoc && active.size > 0 && !active.has(colLoc(c.id))) continue;
         total++;
         if ((data[`${sec.id}__${r.id}_${c.id}`] || '').toString().trim()) filled++;
+      }
+      // Propeller bearing details (3 columns per side: outboard / inboard / strut)
+      if (sec.bearingDetails) {
+        const bd = sec.bearingDetails;
+        for (const f of bd.fields) for (const side of bd.sides) {
+          if (active.size > 0 && !active.has(side.id)) continue;
+          for (const sub of ['outboard', 'inboard', 'strut']) {
+            total++;
+            if ((data[`${sec.id}__bearing_${f.id}_${side.id}_${sub}`] || '').toString().trim()) filled++;
+          }
+        }
       }
     } else if (sec.type === 'chainGrid') {
       for (let s = 0; s < sec.shackleCount; s++) for (let l = 0; l < sec.linksPerShackle; l++) for (const sk of ['port','stbd']) for (const ax of ['x','y']) {
@@ -2452,12 +2761,141 @@ $('#saveCfgBtn').addEventListener('click', () => {
 });
 
 $('#wipeBtn').addEventListener('click', async () => {
-  if (!confirm('Wipe ALL local entries (drafts, pending, synced)? Cannot be undone.')) return;
+  if (!confirm('Wipe ALL local entries (drafts, pending, synced) AND autocomplete history? Cannot be undone.')) return;
   const all = await dbAll();
   for (const e of all) await dbDelete(e.id);
+  await recallClearAll();
   renderDrafts(); renderQueue(); renderSettings(); refreshBadges();
   toast('Local data wiped');
 });
+
+/* =========================================================================
+   AUTOCOMPLETE (recall) WIRING
+   ========================================================================= */
+let _recallActiveInput = null;
+
+function _renderRecallDropdown(input) {
+  const fieldName = input.dataset.recall;
+  if (!fieldName) return;
+  const dropdown = document.querySelector(`[data-recall-dropdown="${fieldName}"]`);
+  if (!dropdown) return;
+
+  recallList(fieldName).then(items => {
+    const filter = input.value.trim().toLowerCase();
+    const filtered = filter
+      ? items.filter(it => it.value.toLowerCase().includes(filter))
+      : items;
+
+    if (filtered.length === 0) {
+      // If no items match, hide the dropdown (don't show "empty" — distracting)
+      dropdown.classList.remove('open');
+      dropdown.innerHTML = '';
+      return;
+    }
+
+    const header = filter
+      ? `<div class="recall-dropdown-header">Matches for "${escapeHtml(filter)}"</div>`
+      : `<div class="recall-dropdown-header">Recent entries — tap to use</div>`;
+    const itemsHtml = filtered.slice(0, 10).map(it => `
+      <div class="recall-item" data-recall-key="${escapeHtml(it.key)}">
+        <div class="recall-item-text">${escapeHtml(it.value)}</div>
+        <button type="button" class="recall-item-delete" data-recall-delete="${escapeHtml(it.key)}" title="Remove from list">×</button>
+      </div>
+    `).join('');
+    dropdown.innerHTML = header + itemsHtml;
+    dropdown.classList.add('open');
+  });
+}
+
+function _closeAllRecalls() {
+  document.querySelectorAll('.recall-dropdown.open').forEach(d => d.classList.remove('open'));
+  _recallActiveInput = null;
+}
+
+// Show dropdown on focus
+document.addEventListener('focusin', (e) => {
+  const input = e.target.closest('[data-recall]');
+  if (!input) {
+    // Closed by clicking elsewhere — but only if focus didn't move to an item
+    setTimeout(() => {
+      if (!document.querySelector('.recall-item:hover, .recall-item-delete:hover')) {
+        // Only close if not currently interacting with a dropdown
+        const af = document.activeElement;
+        if (!af || !af.closest('[data-recall]')) _closeAllRecalls();
+      }
+    }, 50);
+    return;
+  }
+  _recallActiveInput = input;
+  _renderRecallDropdown(input);
+});
+
+// Filter as user types
+document.addEventListener('input', (e) => {
+  const input = e.target.closest('[data-recall]');
+  if (input) _renderRecallDropdown(input);
+});
+
+// Click item to fill, click × to delete
+document.addEventListener('mousedown', (e) => {
+  // Use mousedown so we run before the focusout/blur logic closes the dropdown
+  const delBtn = e.target.closest('[data-recall-delete]');
+  if (delBtn) {
+    e.preventDefault();
+    const key = delBtn.dataset.recallDelete;
+    recallDelete(key).then(() => {
+      if (_recallActiveInput) _renderRecallDropdown(_recallActiveInput);
+    });
+    return;
+  }
+  const item = e.target.closest('.recall-item');
+  if (item && _recallActiveInput) {
+    e.preventDefault();
+    const text = item.querySelector('.recall-item-text');
+    if (text) {
+      _recallActiveInput.value = text.textContent;
+      _recallActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    _closeAllRecalls();
+  }
+});
+document.addEventListener('touchstart', (e) => {
+  // Same logic for touch (mobile primary path)
+  const delBtn = e.target.closest('[data-recall-delete]');
+  if (delBtn) {
+    e.preventDefault();
+    const key = delBtn.dataset.recallDelete;
+    recallDelete(key).then(() => {
+      if (_recallActiveInput) _renderRecallDropdown(_recallActiveInput);
+    });
+    return;
+  }
+  const item = e.target.closest('.recall-item');
+  if (item && _recallActiveInput) {
+    e.preventDefault();
+    const text = item.querySelector('.recall-item-text');
+    if (text) {
+      _recallActiveInput.value = text.textContent;
+      _recallActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    _closeAllRecalls();
+  }
+}, { passive: false });
+
+// Close dropdown when clicking outside the field
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-recall], .recall-dropdown')) {
+    _closeAllRecalls();
+  }
+});
+
+// After saving an entry (draft or complete), persist autocomplete values
+async function recordAutocompleteFromData(data) {
+  for (const fieldName of AUTOCOMPLETE_FIELDS) {
+    const v = (data[fieldName] || '').trim();
+    if (v) await recallAdd(fieldName, v);
+  }
+}
 
 /* =========================================================================
    INIT
