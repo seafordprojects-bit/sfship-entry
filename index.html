@@ -2277,6 +2277,13 @@ function refreshPulloutBlock(blockId) {
     row.classList.toggle('checked', pulled.has(row.dataset.side));
   });
 
+  // Hide the entire pullout block (including the title and amber box) when no sides are active.
+  // The block re-appears as soon as the user toggles on Center, Portside, or Starboard above.
+  const ptBlock = blockEl.querySelector('.pullout-block');
+  if (ptBlock) {
+    ptBlock.style.display = activeSides.size === 0 ? 'none' : '';
+  }
+
   updateAllProgress();
 }
 
@@ -3240,6 +3247,14 @@ async function recordAutocompleteFromData(data) {
    INIT
    ========================================================================= */
 buildForm();
+// Initialize pullout block visibility (hidden when no sides active at the section level)
+for (const sec of SCHEMA) {
+  if (sec.type === 'rudderGrid' && sec.blocks) {
+    for (const block of sec.blocks) refreshPulloutBlock(`${sec.id}__${block.id}`);
+  } else if (sec.type === 'propellerGrid') {
+    refreshPulloutBlock(`${sec.id}__clearance`);
+  }
+}
 updateNetStatus();
 refreshBadges();
 renderAuth();
