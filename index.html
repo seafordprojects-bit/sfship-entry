@@ -2627,6 +2627,57 @@ const PDF_TABS = [
   'PROPELLER', 'LOAD LINE', 'WORK DONE', 'WORK DONE 2', 'CERT. DRYDOCK', 'LIST OF VESSEL'
 ];
 
+// Check whether a blob's first bytes are "%PDF" — the magic header for valid PDF files.
+// Returns false for HTML, JSON, or any non-PDF response (which means the export "failed"
+// even though HTTP returned 200 OK).
+async function isPdfBlob(blob) {
+  if (!blob || blob.size < 5) return false;
+  const head = await blob.slice(0, 5).text();
+  return head.startsWith('%PDF');
+}
+
+// Export PDF via the docs.google.com endpoint. Accepts formatting params (size, fit, etc.)
+// but token auth is unreliable — sometimes returns HTML (sign-in page).
+async function tryDocsExport(spreadsheetId) {
+  const params = new URLSearchParams();
+  params.set('format', 'pdf');
+  params.set('size', 'A4');
+  params.set('portrait', 'true');
+  params.set('fitw', 'true');
+  params.set('gridlines', 'false');
+  params.set('printtitle', 'false');
+  params.set('sheetnames', 'false');
+  params.set('pagenumbers', 'false');
+  params.set('fzr', 'true');
+  params.set('attachment', 'false');
+  const exportUrl =
+    `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?${params.toString()}`;
+  const pdfResp = await fetch(exportUrl, {
+    headers: { 'Authorization': 'Bearer ' + accessToken }
+  });
+  if (!pdfResp.ok) {
+    const txt = await pdfResp.text();
+    throw new Error(`PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
+  }
+  return await pdfResp.blob();
+}
+
+// Export PDF via the official Drive API. Token auth works correctly here.
+// Doesn't accept formatting params — uses the spreadsheet's saved print settings instead.
+// (Make sure the master template's File → Print settings are configured the way you want.)
+async function tryDriveApiExport(spreadsheetId) {
+  const exportUrl =
+    `https://www.googleapis.com/drive/v3/files/${spreadsheetId}/export?mimeType=application%2Fpdf`;
+  const pdfResp = await fetch(exportUrl, {
+    headers: { 'Authorization': 'Bearer ' + accessToken }
+  });
+  if (!pdfResp.ok) {
+    const txt = await pdfResp.text();
+    throw new Error(`Drive API PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
+  }
+  return await pdfResp.blob();
+}
+
 async function generateAndUploadPDF(spreadsheetId, data) {
   const meta = await gFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title,hidden))`
@@ -2662,27 +2713,22 @@ async function generateAndUploadPDF(spreadsheetId, data) {
 
   let pdfBlob;
   try {
-    const params = new URLSearchParams();
-    params.set('format', 'pdf');
-    params.set('size', 'A4');
-    params.set('portrait', 'true');
-    params.set('fitw', 'true');
-    params.set('gridlines', 'false');
-    params.set('printtitle', 'false');
-    params.set('sheetnames', 'false');
-    params.set('pagenumbers', 'false');
-    params.set('fzr', 'true');
-    params.set('attachment', 'false');
-    const exportUrl =
-      `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?${params.toString()}`;
-    const pdfResp = await fetch(exportUrl, {
-      headers: { 'Authorization': 'Bearer ' + accessToken }
-    });
-    if (!pdfResp.ok) {
-      const txt = await pdfResp.text();
-      throw new Error(`PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
+    // Try the docs.google.com export first because it accepts formatting params
+    // (size, orientation, fit-to-width). However, this endpoint sometimes returns
+    // HTML (sign-in page or error page) instead of a real PDF when the OAuth token
+    // doesn't authenticate against docs.google.com cleanly. We validate the result
+    // and fall back to the Drive API export if needed.
+    pdfBlob = await tryDocsExport(spreadsheetId);
+
+    // Validate: real PDFs start with the bytes "%PDF". If not, this is HTML
+    // (almost certainly a sign-in/error page) — fall back to the Drive API.
+    if (!(await isPdfBlob(pdfBlob))) {
+      console.warn('docs.google.com export returned non-PDF — falling back to Drive API export');
+      pdfBlob = await tryDriveApiExport(spreadsheetId);
+      if (!(await isPdfBlob(pdfBlob))) {
+        throw new Error('Both PDF export endpoints returned non-PDF data. The Sheet was saved successfully, but the PDF could not be generated. You can manually download a PDF from the Sheet menu.');
+      }
     }
-    pdfBlob = await pdfResp.blob();
   } finally {
     if (tabsToUnhide.length > 0) {
       const unhideRequests = tabsToUnhide.map(p => ({
