@@ -297,6 +297,37 @@
   }
   .work-checkbox:hover { border-color: var(--navy); }
 
+  /* Second docking toggle (Ships Data — appears only when checked) */
+  .second-docking-toggle {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; margin: 8px 0;
+    background: var(--bone);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .second-docking-toggle .sd-checkbox {
+    width: 22px; height: 22px;
+    border: 2px solid var(--navy);
+    background: #fff;
+    border-radius: 3px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+  }
+  .second-docking-toggle.checked .sd-checkbox { background: var(--navy); }
+  .second-docking-toggle .sd-checkbox::after {
+    content: ''; color: #fff; font-weight: 800; font-size: 16px; line-height: 1;
+  }
+  .second-docking-toggle.checked .sd-checkbox::after { content: '✓'; }
+  .second-docking-toggle .sd-text {
+    font-family: Calibri, sans-serif; font-size: 14px;
+    font-weight: 600; color: var(--ink);
+  }
+  /* The 2nd docking row stays hidden until the toggle above is checked */
+  .second-docking-row { display: none; }
+  .second-docking-row.show { display: grid; }
+
   /* Per-side pullout checkboxes (Rudder Stock / Pintle / Propeller — when checked, AP becomes visible) */
   .pullout-block {
     margin-bottom: 10px;
@@ -796,19 +827,13 @@ const SCHEMA = [
     sheet: 'SHIPS DATA',
     desc: 'Project header — flows to every other tab automatically.',
     fields: [
+      // ─── Company info (top) ───
       { id: 'projectNo',         label: 'Project No.',           cell: 'B3',  type: 'text', required: true, placeholder: '26-21-004' },
       { id: 'vesselName',        label: 'Name of Vessel',        cell: 'B4',  type: 'text', required: true, placeholder: 'MTUG "DON PILO"' },
       { id: 'companyName',       label: 'Company Name',          cell: 'B5',  type: 'text', placeholder: 'Seaford Shipping Lines, Inc.' },
       { id: 'companyAddress',    label: 'Company Address',       cell: 'B6',  type: 'textarea', placeholder: 'Pier 4, Bf Paray Building...' },
-      { id: 'dateRequested',     label: 'Date Requested',        cell: 'B7',  type: 'date', dateAsText: true },
-      { id: 'ordinalDate',       label: 'Ordinal Date',          cell: 'B8',  type: 'text', placeholder: '27th' },
-      { id: 'monthYear',         label: 'Month & Year',          cell: 'B9',  type: 'text', placeholder: 'March 2026' },
-      { id: 'arrivalDate',       label: 'Arrival Date',          cell: 'B10', type: 'date' },
-      { id: 'dockingDate',       label: 'Docking Date',          cell: 'B11', type: 'date' },
-      { id: 'undockingDate',     label: 'Undocking Date',        cell: 'B12', type: 'date' },
-      { id: 'secondDockingDate', label: '2nd Docking Date',      cell: 'B13', type: 'date' },
-      { id: 'secondUndockingDate', label: '2nd Undocking Date',  cell: 'B14', type: 'date' },
-      { id: 'departureDate',     label: 'Departure Date',        cell: 'B15', type: 'date' },
+
+      // ─── Ship dimensions ───
       { id: 'loa',               label: 'LOA',                   cell: 'B17', type: 'text', placeholder: '19.70 m' },
       { id: 'lbp',               label: 'LBP',                   cell: 'B18', type: 'text' },
       { id: 'breadth',           label: 'Breadth',               cell: 'B19', type: 'text', placeholder: '5.449 m' },
@@ -816,8 +841,41 @@ const SCHEMA = [
       { id: 'draft',             label: 'Draft',                 cell: 'B21', type: 'text' },
       { id: 'grt',               label: 'GRT',                   cell: 'B22', type: 'text', placeholder: '66.37' },
       { id: 'vesselType',        label: 'Type of Vessel',        cell: 'B23', type: 'text', placeholder: 'Tugboat' },
+
+      // ─── Transmitter info (filled last when sending report) ───
       { id: 'transmittedBy',     label: 'Transmitted By',        cell: 'B25', type: 'text', placeholder: 'Loulla K. Lauron' },
-      { id: 'position',          label: 'Position',              cell: 'B26', type: 'text', placeholder: 'Document Controller 1' },
+      { id: 'position',          label: 'Position',              cell: 'B26', type: 'text', placeholder: 'Document Controller 1' }
+    ]
+  },
+
+  // VESSEL SCHEDULE — all date fields, written to SHIPS DATA tab cells B7-B15
+  {
+    id: 'vesselSchedule',
+    title: 'Vessel Schedule',
+    num: 'ii',
+    sheet: 'SHIPS DATA',
+    desc: 'Request and drydocking timeline.',
+    fields: [
+      { id: 'dateRequested',     label: 'Date Requested',        cell: 'B7',  type: 'date', dateAsText: true },
+      { id: 'ordinalDate',       label: 'Ordinal Date',          cell: 'B8',  type: 'text', placeholder: '27th' },
+      { id: 'monthYear',         label: 'Month & Year',          cell: 'B9',  type: 'text', placeholder: 'March 2026' },
+      { id: 'arrivalDate',       label: 'Arrival Date',          cell: 'B10', type: 'date' },
+      { id: 'dockingDate',       label: 'Docking Date',          cell: 'B11', type: 'date' },
+      { id: 'undockingDate',     label: 'Undocking Date',        cell: 'B12', type: 'date' },
+      { id: 'departureDate',     label: 'Departure Date',        cell: 'B15', type: 'date' },
+      { id: 'secondDockingDate', label: '2nd Docking Date',      cell: 'B13', type: 'date' },
+      { id: 'secondUndockingDate', label: '2nd Undocking Date',  cell: 'B14', type: 'date' }
+    ]
+  },
+
+  // LOAD LINE CALIBRATION — measurements written to SHIPS DATA tab cells B29-B32
+  {
+    id: 'loadLineCal',
+    title: 'Load Line Calibration',
+    num: 'iii',
+    sheet: 'SHIPS DATA',
+    desc: 'Load line measurements in mm.',
+    fields: [
       { id: 'tropical',          label: 'Tropical (mm)',         cell: 'B29', type: 'number', placeholder: '551' },
       { id: 'summer',            label: 'Summer (mm)',           cell: 'B30', type: 'number', placeholder: '590' },
       { id: 'mmAboveS',          label: 'mm above (S)',          cell: 'B31', type: 'number', placeholder: '39' },
@@ -829,7 +887,7 @@ const SCHEMA = [
   {
     id: 'rudder',
     title: 'Rudder Stock & Pintle Bushing',
-    num: 'ii',
+    num: 'iv',
     sheet: 'RUDDER',
     desc: 'Tap which sides apply (Center / Portside / Starboard) — only those tables will show. Clearances in mm.',
     type: 'rudderGrid',
@@ -891,7 +949,7 @@ const SCHEMA = [
   {
     id: 'chain',
     title: 'Chain Calibration',
-    num: 'iii',
+    num: 'v',
     sheet: 'CHAIN CALIB.',
     desc: '7 shackles × 4 links × X+Y axes × Port+Stbd. ~112 measurements. Means auto-calculate.',
     type: 'chainGrid',
@@ -917,7 +975,7 @@ const SCHEMA = [
   {
     id: 'testReport',
     title: 'Test Report',
-    num: 'iv',
+    num: 'vi',
     sheet: 'TEST REPORT',
     desc: 'Mark each item Passed, Failed, or N/A.',
     type: 'checklist',
@@ -974,7 +1032,7 @@ const SCHEMA = [
   {
     id: 'propeller',
     title: 'Propeller Shaft Bearing',
-    num: 'v',
+    num: 'vii',
     sheet: 'PROPELLER',
     desc: 'Tap which sides apply (Center / Portside / Starboard) — only those tables will show. Clearances in mm.',
     type: 'propellerGrid',
@@ -1027,7 +1085,7 @@ const SCHEMA = [
   {
     id: 'workDone',
     title: 'Work Done',
-    num: 'vi',
+    num: 'viii',
     sheet: 'WORK DONE',
     desc: 'Check off completed work. Add location notes where relevant.',
     type: 'workChecklist',
@@ -1416,7 +1474,8 @@ function buildSection(sec) {
 
 function buildFieldList(sec) {
   const wrap = document.createElement('div');
-  // Group similar paired fields into rows
+  // Group similar paired fields into rows. IMPORTANT: pair partners must be ADJACENT in the
+  // schema's fields array — otherwise the field gets silently skipped (see fallback in `pairedSet` branch).
   const pairs = [
     ['dateRequested','ordinalDate'],
     ['arrivalDate','dockingDate'],
@@ -1430,22 +1489,44 @@ function buildFieldList(sec) {
     ['mmAboveS','freshWater']
   ];
   const pairedSet = new Set(pairs.flat());
-  const i = 0;
   let idx = 0;
   while (idx < sec.fields.length) {
     const f = sec.fields[idx];
+
     const pair = pairs.find(p => p[0] === f.id);
     if (pair && idx + 1 < sec.fields.length && sec.fields[idx+1].id === pair[1]) {
       const row = document.createElement('div');
       row.className = 'field-row';
+      // Tag the 2nd docking row so it can be hidden by default and toggled on
+      if (pair[0] === 'secondDockingDate') {
+        row.classList.add('second-docking-row');
+      }
       row.appendChild(buildField(sec.fields[idx], sec.id));
       row.appendChild(buildField(sec.fields[idx+1], sec.id));
       wrap.appendChild(row);
       idx += 2;
-    } else if (pairedSet.has(f.id)) {
-      // skip if already part of a pair; shouldn't happen
-      idx++;
+
+      // After rendering the undockingDate + departureDate pair, insert the toggle for 2nd docking
+      if (pair[0] === 'undockingDate' && sec.id === 'vesselSchedule') {
+        const tDiv = document.createElement('label');
+        tDiv.className = 'second-docking-toggle';
+        tDiv.dataset.section = sec.id;
+        tDiv.innerHTML = `
+          <span class="sd-checkbox"></span>
+          <span class="sd-text">Vessel had a 2nd docking</span>
+        `;
+        // Hidden input to persist the toggle state in the form data
+        const tState = document.createElement('input');
+        tState.type = 'hidden';
+        tState.name = `${sec.id}__hasSecondDocking`;
+        tState.value = '';
+        tDiv.appendChild(tState);
+        wrap.appendChild(tDiv);
+      }
     } else {
+      // Fallback: render this field on its own row. (Previously we'd skip fields in
+      // pairedSet here — but that caused fields to silently disappear when the schema
+      // order changed. Better to render unpaired than to drop them.)
       wrap.appendChild(buildField(f, sec.id));
       idx++;
     }
@@ -2075,6 +2156,10 @@ function fillFormData(data) {
       restorePulloutToggle(blockId, data[`${blockId}_pulledSides`] || '');
     }
   }
+  // Restore "2nd docking" toggle for Vessel Schedule (auto-show row if user had filled in 2nd dates)
+  const hadSecondDocking = (data['vesselSchedule__hasSecondDocking'] || '') === 'yes' ||
+    !!data['vesselSchedule__secondDockingDate'] || !!data['vesselSchedule__secondUndockingDate'];
+  restoreSecondDockingToggle('vesselSchedule', hadSecondDocking ? 'yes' : '');
   updateAllProgress();
 }
 
@@ -2099,6 +2184,8 @@ function clearForm() {
       restorePulloutToggle(`${sec.id}__clearance`, '');
     }
   }
+  // Reset 2nd docking toggle
+  applySecondDockingToggle('vesselSchedule', false);
   updateAllProgress();
 }
 
@@ -2232,6 +2319,42 @@ function restoreLocationToggles(sectionId, csv) {
     else p.classList.remove('active');
   });
   applyLocationToggles(sectionId);
+}
+
+// Second docking toggle (Ships Data — show/hide the 2nd docking date row)
+document.addEventListener('click', (e) => {
+  const tog = e.target.closest('.second-docking-toggle');
+  if (!tog) return;
+  e.preventDefault();
+  const isChecked = !tog.classList.contains('checked');
+  applySecondDockingToggle(tog.dataset.section || 'shipsData', isChecked);
+});
+
+function applySecondDockingToggle(sectionId, isChecked) {
+  const tog = document.querySelector(`.second-docking-toggle[data-section="${sectionId}"]`);
+  if (tog) tog.classList.toggle('checked', isChecked);
+  // Show/hide the 2nd docking row inside this section
+  const sec = document.querySelector(`details[data-section-id="${sectionId}"]`);
+  if (sec) {
+    const row = sec.querySelector('.second-docking-row');
+    if (row) row.classList.toggle('show', isChecked);
+  }
+  // Persist state to hidden input
+  const stateInput = document.querySelector(`input[name="${sectionId}__hasSecondDocking"]`);
+  if (stateInput) stateInput.value = isChecked ? 'yes' : '';
+  // If toggling OFF, also clear any values in the 2nd docking date fields
+  if (!isChecked) {
+    const sd = document.querySelector(`input[name="${sectionId}__secondDockingDate"]`);
+    const su = document.querySelector(`input[name="${sectionId}__secondUndockingDate"]`);
+    if (sd) sd.value = '';
+    if (su) su.value = '';
+  }
+  updateAllProgress();
+}
+
+function restoreSecondDockingToggle(sectionId, savedVal) {
+  const isChecked = (savedVal || '') === 'yes';
+  applySecondDockingToggle(sectionId, isChecked);
 }
 
 // Pullout per-side checkbox clicks (Rudder Stock, Pintle Bushing, Propeller Clearance)
