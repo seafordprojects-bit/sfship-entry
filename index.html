@@ -795,6 +795,12 @@
     </div>
 
     <div class="setting-group">
+      <h4>Google Account</h4>
+      <p style="font-size:14px; color: var(--ink-soft); margin-bottom: 8px">Sign out and back in if you change your master template or run into permission errors.</p>
+      <button class="btn btn-secondary" id="setupSignOutBtn" style="width:100%">Sign out of Google</button>
+    </div>
+
+    <div class="setting-group">
       <h4>Local Storage</h4>
       <p>Drafts: <strong id="cfgDrafts">0</strong> · Pending: <strong id="cfgPending">0</strong> · Synced: <strong id="cfgSynced">0</strong></p>
       <button class="btn btn-danger" id="wipeBtn" style="width:100%; margin-top:8px">Wipe All Local Data</button>
@@ -1200,7 +1206,7 @@ const CONFIG_KEY = 'sfship_config_v2';
 const DB_NAME = 'sfship_db_v2';
 const DB_STORE = 'entries';
 const DB_AUTO_STORE = 'autocomplete';
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets';
 
 // Fields that should have autocomplete from previous entries
 const AUTOCOMPLETE_FIELDS = new Set([
@@ -1416,6 +1422,17 @@ $('#signOutBtn').addEventListener('click', () => {
   renderAuth();
   toast('Signed out');
 });
+// Same handler for the Sign Out button on the Setup tab
+const setupSignOutBtn = document.querySelector('#setupSignOutBtn');
+if (setupSignOutBtn) {
+  setupSignOutBtn.addEventListener('click', () => {
+    if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+    accessToken = null;
+    sessionStorage.removeItem('sfship_token');
+    renderAuth();
+    toast('Signed out — sign in again from the Entry tab');
+  });
+}
 
 /* =========================================================================
    FORM RENDERING — build from SCHEMA
