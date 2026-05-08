@@ -2641,6 +2641,34 @@ function buildSheetWrites(data) {
   return writes;
 }
 
+// Search a parent folder for a sub-folder whose NAME starts with the given project number.
+// Returns the matched sub-folder's ID, or null if no match.
+//
+// Example: parentFolderId = "FD 2026", projectNo = "26-004"
+//          → finds the "26-004 MTUG DON PILO" sub-folder and returns its ID.
+//
+// We escape single quotes in the project number (prefix) for the Drive search query
+// since Drive's `q` parameter wraps strings in single quotes.
+async function findVesselFolder(parentFolderId, projectNo) {
+  if (!parentFolderId || !projectNo) return null;
+  const safePrefix = projectNo.replace(/'/g, "\\'");
+  const q = [
+    `'${parentFolderId}' in parents`,
+    `mimeType = 'application/vnd.google-apps.folder'`,
+    `name contains '${safePrefix}'`,
+    `trashed = false`
+  ].join(' and ');
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=20&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const res = await gFetch(url);
+  const files = (res && res.files) || [];
+  // Drive's `name contains` is a substring match (not strict prefix). Filter to ensure
+  // the name actually starts with the project number, not just contains it somewhere.
+  const startsMatch = files.find(f =>
+    (f.name || '').trim().toLowerCase().startsWith(projectNo.trim().toLowerCase())
+  );
+  return startsMatch ? startsMatch.id : null;
+}
+
 async function syncEntry(entry) {
   if (!config.templateId) throw new Error('Master Template Sheet ID not set in Setup');
   const data = entry.data;
@@ -2648,9 +2676,23 @@ async function syncEntry(entry) {
   const vesselClean = (vesselName || 'VESSEL').replace(/[\\\/:*?"<>|]/g, '');
   const fileName = `${projectNo} ${vesselClean}`.trim();
 
-  // 1. Copy template
+  // Resolve target folder: if a fallback folder is configured, try to find a sub-folder
+  // whose name starts with the project number (e.g., "26-004 MTUG DON PILO"). If found,
+  // save inside that vessel-specific folder. Otherwise use the configured folder root.
+  let targetFolderId = config.folderId || null;
+  if (config.folderId && projectNo) {
+    try {
+      const matchedFolderId = await findVesselFolder(config.folderId, projectNo);
+      if (matchedFolderId) targetFolderId = matchedFolderId;
+    } catch (e) {
+      // Folder search failed — fall through to using config.folderId. Don't break the sync.
+      console.warn('Vessel folder search failed, using fallback folder', e);
+    }
+  }
+
+  // 1. Copy template into the target folder
   const copyBody = { name: fileName };
-  if (config.folderId) copyBody.parents = [config.folderId];
+  if (targetFolderId) copyBody.parents = [targetFolderId];
   const newFile = await gFetch(
     `https://www.googleapis.com/drive/v3/files/${config.templateId}/copy?supportsAllDrives=true`,
     { method: 'POST', body: JSON.stringify(copyBody) }
@@ -2811,9 +2853,20 @@ async function generateAndUploadPDF(spreadsheetId, data) {
   const cleanVessel = vesselName.replace(/[\\\/:*?"<>|]/g, '');
   const pdfFileName = `${projectNo} ${cleanVessel} DRYDOCKING REPORT.pdf`.trim();
 
+  // Resolve target folder for PDF — same logic as syncEntry: prefer vessel-specific sub-folder
+  let pdfTargetFolderId = config.folderId || null;
+  if (config.folderId && projectNo) {
+    try {
+      const matchedFolderId = await findVesselFolder(config.folderId, projectNo);
+      if (matchedFolderId) pdfTargetFolderId = matchedFolderId;
+    } catch (e) {
+      console.warn('Vessel folder search for PDF failed, using fallback folder', e);
+    }
+  }
+
   // 6. Upload to Drive (multipart so we can set name + parents in one shot)
   const metadata = { name: pdfFileName, mimeType: 'application/pdf' };
-  if (config.folderId) metadata.parents = [config.folderId];
+  if (pdfTargetFolderId) metadata.parents = [pdfTargetFolderId];
 
   const boundary = 'sfship_pdf_' + Math.random().toString(36).slice(2);
   const metaPart =
