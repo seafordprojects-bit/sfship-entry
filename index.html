@@ -897,12 +897,6 @@ const SCHEMA = [
     sheet: 'RUDDER',
     desc: 'Tap which sides apply (Center / Portside / Starboard) — only those tables will show. Clearances in mm.',
     type: 'rudderGrid',
-    // The actual cell layout in RUDDER tab rows 17-20 (stock) and 25-28 (pintle):
-    // Row 17 (Fwd), 18 (Aft), 19 (Stbd), 20 (Port) for STOCK
-    // Row 25 (Fwd), 26 (Aft), 27 (Stbd), 28 (Port) for PINTLE
-    // Columns: B/D = Center Upper BP/AP; F/H = Center Lower BP/AP
-    //          J/L = Portside Upper BP/AP; N/P = Portside Lower BP/AP
-    //          R/T = Starboard Upper BP/AP; V/X = Starboard Lower BP/AP
     blocks: [
       { id: 'rudStock', label: 'Rudder Stock Bushing', baseRow: 17 },
       { id: 'rudPintle', label: 'Pintle Bushing', baseRow: 25 }
@@ -927,9 +921,6 @@ const SCHEMA = [
       { id: 'sLBP', label: 'Stbd Lower BP', col: 'V' },
       { id: 'sLAP', label: 'Stbd Lower AP', col: 'X' }
     ],
-    // Bearing Details grid (rows 32-35 in RUDDER tab):
-    // 4 fields × 6 columns (Center STOCK/PINTLE, Port STOCK/PINTLE, Stbd STOCK/PINTLE)
-    // Columns are: B/F = Center, J/N = Port, R/V = Stbd
     bearingDetails: {
       label: 'Bearing Details',
       fields: [
@@ -946,12 +937,7 @@ const SCHEMA = [
     }
   },
 
-  // TAILSHAFT — REMOVED (handled separately in spreadsheet, not via app)
-
-  // CHAIN CALIBRATION — 7 shackles × 4 readings × 2 axes × 2 sides = 112 fields
-  // Port: rows 21-24 (shackle 1), 25-28 (shackle 2), 29-32 (3), 33-36 (4), 37-40 (5)
-  // Starboard: same rows, columns N/P
-  // Page 2 (continued): rows 69-76 — actual data only goes to 7 shackles
+  // CHAIN CALIBRATION
   {
     id: 'chain',
     title: 'Chain Calibration',
@@ -961,11 +947,7 @@ const SCHEMA = [
     type: 'chainGrid',
     shackleCount: 7,
     linksPerShackle: 4,
-    // Shackle 1 starts at row 21, each shackle takes 4 rows
-    // BUT the file has Page 1: shackles 1-5 (rows 21-40), Page 2: shackles 6-7 (rows 69-76)
     rowMap: function(shackleIdx, linkIdx) {
-      // shackleIdx 0-4 => page 1, rows 21+shIdx*4+linkIdx
-      // shackleIdx 5-6 => page 2, rows 69+(shIdx-5)*4+linkIdx
       if (shackleIdx < 5) return 21 + shackleIdx * 4 + linkIdx;
       return 69 + (shackleIdx - 5) * 4 + linkIdx;
     },
@@ -975,9 +957,7 @@ const SCHEMA = [
     }
   },
 
-  // TEST REPORT — checkboxes (PASSED/FAILED) for predefined items
-  // Cells are E15:E34 for PASSED, L15:L34 for FAILED
-  // Each item has a description, you mark passed/failed
+  // TEST REPORT
   {
     id: 'testReport',
     title: 'Test Report',
@@ -1030,11 +1010,7 @@ const SCHEMA = [
     ]
   },
 
-  // PROPELLER — bearing clearances grid like rudder
-  // Top (R16), Bottom (R17), A (R18), B (R19) — but most are "-" (not applicable)
-  // Columns: C/D = Center Outboard BP/AP, E/F = Center Inboard BP/AP, G/H = Center Strut BP/AP
-  //          I/J = Port Outboard, K/L = Port Inboard, M/N = Port Strut
-  //          O/P = Stbd Outboard, Q/R = Stbd Inboard, S/T = Stbd Strut
+  // PROPELLER
   {
     id: 'propeller',
     title: 'Propeller Shaft Bearing',
@@ -1068,9 +1044,6 @@ const SCHEMA = [
       { id: 's_stBP', label: 'Stbd Strut BP', col: 'S' },
       { id: 's_stAP', label: 'Stbd Strut AP', col: 'T' }
     ],
-    // Bearing Details grid (rows 23-26 in PROPELLER tab):
-    // 4 fields × 9 columns (3 sides × 3 positions: Outboard / Inboard / Strut)
-    // Column starts: Center: C/E/G; Port: I/K/M; Stbd: O/Q/S
     bearingDetails: {
       label: 'Bearing Details',
       fields: [
@@ -1087,7 +1060,7 @@ const SCHEMA = [
     }
   },
 
-  // WORK DONE — checklist of predefined work items + optional location
+  // WORK DONE
   {
     id: 'workDone',
     title: 'Work Done',
@@ -1095,13 +1068,10 @@ const SCHEMA = [
     sheet: 'WORK DONE',
     desc: 'Check off completed work. Add location notes where relevant.',
     type: 'workChecklist',
-    // Type of Repair cells exist on BOTH WORK DONE and WORK DONE 2 (page 1 and page 2 mirror each other).
-    // Sync writes to both so both pages show the same state.
     typeOfRepair: {
       regularCells:   [{ sheet: 'WORK DONE', cell: 'L12' }, { sheet: 'WORK DONE 2', cell: 'L12' }],
       emergencyCells: [{ sheet: 'WORK DONE', cell: 'L13' }, { sheet: 'WORK DONE 2', cell: 'L13' }]
     },
-    // List of all sheet tabs the Work Done section uses. Used by hide-rows, renumber, and PDF logic.
     sheets: ['WORK DONE', 'WORK DONE 2'],
     groups: [
       // ─────── Page 1 (WORK DONE tab) ───────
@@ -1170,29 +1140,29 @@ const SCHEMA = [
       {
         title: 'No. 6 — Propeller Works',
         sheet: 'WORK DONE 2',
-        headerRow: 22,
+        headerRow: 21,
         items: [
-          { id: 'w6_remove',  label: 'Remove and Install for tailshaft removal',  checkCell: 'A23_check' },
-          { id: 'w6_polish',  label: 'Light Polishing',                            checkCell: 'A24_check' }
+          { id: 'w6_remove',  label: 'Remove and Install for tailshaft removal',  checkCell: 'A22_check' },
+          { id: 'w6_polish',  label: 'Light Polishing',                            checkCell: 'A23_check' }
         ]
       },
       {
         title: 'No. 7 — Steel Works',
         sheet: 'WORK DONE 2',
-        headerRow: 25,
+        headerRow: 24,
         items: [
-          { id: 'w7_crop',  label: 'Crop and replace deteriorated plates',  checkCell: 'A26_check', locationCell: 'P26' }
+          { id: 'w7_crop',  label: 'Crop and replace deteriorated plates',  checkCell: 'A25_check', locationCell: 'P25' }
         ]
       },
       {
         title: 'No. 8 — Anchor / Chain / Locker Works',
         sheet: 'WORK DONE 2',
-        headerRow: 27,
+        headerRow: 26,
         items: [
-          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A28_check', locationCell: 'P28' },
-          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A29_check', locationCell: 'P29' },
-          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A30_check', locationCell: 'P30' },
-          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A31_check', locationCell: 'P31' }
+          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A27_check', locationCell: 'P27' },
+          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A28_check', locationCell: 'P28' },
+          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A29_check', locationCell: 'P29' },
+          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A30_check', locationCell: 'P30' }
         ]
       }
     ]
@@ -1208,7 +1178,6 @@ const DB_STORE = 'entries';
 const DB_AUTO_STORE = 'autocomplete';
 const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets';
 
-// Fields that should have autocomplete from previous entries
 const AUTOCOMPLETE_FIELDS = new Set([
   'shipsData__companyName',
   'shipsData__companyAddress',
@@ -1271,7 +1240,6 @@ async function dbDelete(id) {
   });
 }
 
-// Autocomplete (recall) helpers — store remembered values keyed by `field|value`
 async function recallAdd(field, value) {
   const v = (value || '').trim();
   if (!v) return;
@@ -1302,7 +1270,6 @@ async function recallList(field) {
     req.onsuccess = () => {
       const all = req.result || [];
       const matching = all.filter(r => r.field === field);
-      // Sort by lastUsed (most recent first)
       matching.sort((a, b) => (b.lastUsed || '').localeCompare(a.lastUsed || ''));
       resolve(matching);
     };
@@ -1422,7 +1389,6 @@ $('#signOutBtn').addEventListener('click', () => {
   renderAuth();
   toast('Signed out');
 });
-// Same handler for the Sign Out button on the Setup tab
 const setupSignOutBtn = document.querySelector('#setupSignOutBtn');
 if (setupSignOutBtn) {
   setupSignOutBtn.addEventListener('click', () => {
@@ -1491,8 +1457,6 @@ function buildSection(sec) {
 
 function buildFieldList(sec) {
   const wrap = document.createElement('div');
-  // Group similar paired fields into rows. IMPORTANT: pair partners must be ADJACENT in the
-  // schema's fields array — otherwise the field gets silently skipped (see fallback in `pairedSet` branch).
   const pairs = [
     ['dateRequested','ordinalDate'],
     ['arrivalDate','dockingDate'],
@@ -1514,7 +1478,6 @@ function buildFieldList(sec) {
     if (pair && idx + 1 < sec.fields.length && sec.fields[idx+1].id === pair[1]) {
       const row = document.createElement('div');
       row.className = 'field-row';
-      // Tag the 2nd docking row so it can be hidden by default and toggled on
       if (pair[0] === 'secondDockingDate') {
         row.classList.add('second-docking-row');
       }
@@ -1523,7 +1486,6 @@ function buildFieldList(sec) {
       wrap.appendChild(row);
       idx += 2;
 
-      // After rendering the undockingDate + departureDate pair, insert the toggle for 2nd docking
       if (pair[0] === 'undockingDate' && sec.id === 'vesselSchedule') {
         const tDiv = document.createElement('label');
         tDiv.className = 'second-docking-toggle';
@@ -1532,7 +1494,6 @@ function buildFieldList(sec) {
           <span class="sd-checkbox"></span>
           <span class="sd-text">Vessel had a 2nd docking</span>
         `;
-        // Hidden input to persist the toggle state in the form data
         const tState = document.createElement('input');
         tState.type = 'hidden';
         tState.name = `${sec.id}__hasSecondDocking`;
@@ -1541,9 +1502,6 @@ function buildFieldList(sec) {
         wrap.appendChild(tDiv);
       }
     } else {
-      // Fallback: render this field on its own row. (Previously we'd skip fields in
-      // pairedSet here — but that caused fields to silently disappear when the schema
-      // order changed. Better to render unpaired than to drop them.)
       wrap.appendChild(buildField(f, sec.id));
       idx++;
     }
@@ -1580,7 +1538,6 @@ function buildField(f, sectionId) {
 function buildRudderGrid(sec) {
   const wrap = document.createElement('div');
 
-  // Build the location toggle once per section (applies to both blocks)
   const toggleDiv = document.createElement('div');
   toggleDiv.className = 'loc-toggle';
   toggleDiv.innerHTML = `
@@ -1589,7 +1546,6 @@ function buildRudderGrid(sec) {
     <button type="button" class="loc-pill" data-loc="port" data-sec="${sec.id}">Portside</button>
     <button type="button" class="loc-pill" data-loc="stbd" data-sec="${sec.id}">Starboard</button>
   `;
-  // Hidden input to persist state in form data (so drafts remember it)
   const stateInput = document.createElement('input');
   stateInput.type = 'hidden';
   stateInput.name = `${sec.id}__locations`;
@@ -1599,12 +1555,10 @@ function buildRudderGrid(sec) {
 
   for (const block of sec.blocks) {
     const blockDiv = document.createElement('div');
-    // Default state: not pulled out for ALL sides
     blockDiv.className = 'grid-block not-pulled-center not-pulled-port not-pulled-stbd';
     blockDiv.dataset.pulloutBlock = `${sec.id}__${block.id}`;
     blockDiv.innerHTML = `<div class="grid-title">${escapeHtml(block.label)}</div>`;
 
-    // Per-side pullout checkboxes (default: all unchecked = not pulled out → AP hidden, BP mirrors to AP)
     const ptDiv = document.createElement('div');
     ptDiv.className = 'pullout-block';
     ptDiv.innerHTML = `
@@ -1622,7 +1576,6 @@ function buildRudderGrid(sec) {
         <span class="ps-text">Starboard pulled out</span>
       </label>
     `;
-    // Hidden input: CSV of pulled sides (e.g. "port,stbd"). Empty string means none pulled.
     const ptState = document.createElement('input');
     ptState.type = 'hidden';
     ptState.name = `${sec.id}__${block.id}_pulledSides`;
@@ -1642,7 +1595,7 @@ function buildRudderGrid(sec) {
       const tbl = document.createElement('table');
       tbl.className = 'meas-table';
       tbl.style.marginBottom = '10px';
-      tbl.style.display = 'none'; // hidden until location toggled on
+      tbl.style.display = 'none';
       tbl.dataset.locGroup = side.loc;
       tbl.dataset.locSection = sec.id;
       let html = `<tr><th colspan="3">${escapeHtml(side.label)}</th></tr>
@@ -1662,7 +1615,6 @@ function buildRudderGrid(sec) {
     wrap.appendChild(blockDiv);
   }
 
-  // Bearing Details — one table per side (Center / Port / Stbd), each shows STOCK and PINTLE columns
   if (sec.bearingDetails) {
     const bd = sec.bearingDetails;
     const bearingWrap = document.createElement('div');
@@ -1693,7 +1645,6 @@ function buildRudderGrid(sec) {
     wrap.appendChild(bearingWrap);
   }
 
-  // Empty-state message when nothing is toggled yet
   const empty = document.createElement('div');
   empty.className = 'helper';
   empty.dataset.locEmpty = sec.id;
@@ -1705,10 +1656,8 @@ function buildRudderGrid(sec) {
 }
 
 function buildClearanceGrid(sec) {
-  // For tailshaft and propeller — group columns into chunks of 6 and render compact tables
   const wrap = document.createElement('div');
 
-  // For propeller AND tailshaft (now both have Center/Port/Stbd structure), add location toggles
   const useLocToggle = (sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid');
   if (useLocToggle) {
     const toggleDiv = document.createElement('div');
@@ -1727,7 +1676,6 @@ function buildClearanceGrid(sec) {
     wrap.appendChild(toggleDiv);
   }
 
-  // For propeller, wrap clearance tables in a grid-block with per-side pullout checkboxes (default: all unchecked = not pulled)
   let clearanceContainer = wrap;
   if (sec.type === 'propellerGrid') {
     const clearBlock = document.createElement('div');
@@ -1763,10 +1711,9 @@ function buildClearanceGrid(sec) {
     clearanceContainer = clearBlock;
   }
 
-  // Group columns by category
   const colGroups = {};
   for (const c of sec.cols) {
-    const cat = c.label.split(' ').slice(0, -1).join(' '); // e.g. "Center Outboard" or "Inplace Outboard"
+    const cat = c.label.split(' ').slice(0, -1).join(' ');
     if (!colGroups[cat]) colGroups[cat] = [];
     colGroups[cat].push(c);
   }
@@ -1785,7 +1732,7 @@ function buildClearanceGrid(sec) {
     }
     let html = `<tr><th colspan="${cols.length+1}">${escapeHtml(groupName)}</th></tr><tr><th></th>`;
     for (const c of cols) {
-      const tail = c.label.split(' ').slice(-1)[0]; // BP or AP
+      const tail = c.label.split(' ').slice(-1)[0];
       const isAP = tail.toUpperCase() === 'AP';
       html += `<th${isAP ? ' data-ap-col' : ''}>${escapeHtml(tail)}</th>`;
     }
@@ -1804,7 +1751,6 @@ function buildClearanceGrid(sec) {
     clearanceContainer.appendChild(tbl);
   }
 
-  // Propeller Bearing Details — 3 columns per side (Outboard / Inboard / Strut), 4 rows (fields)
   if (sec.bearingDetails) {
     const bd = sec.bearingDetails;
     const bearingWrap = document.createElement('div');
@@ -1907,7 +1853,6 @@ function buildChecklist(sec) {
       wrap.appendChild(buildField(f, sec.id));
     }
   }
-  // Attach click handlers via delegation
   wrap.addEventListener('click', (e) => {
     const pill = e.target.closest('.check-pill');
     if (!pill) return;
@@ -1927,7 +1872,6 @@ function buildChecklist(sec) {
 function buildWorkChecklist(sec) {
   const wrap = document.createElement('div');
 
-  // Type of repair toggle (keep as pills, not checkbox — only one can be active)
   const typeDiv = document.createElement('div');
   typeDiv.className = 'checklist-group';
   typeDiv.innerHTML = `
@@ -1956,7 +1900,6 @@ function buildWorkChecklist(sec) {
     g.className = 'checklist-group';
     let html = `<div class="checklist-group-head">${escapeHtml(grp.title)}</div>`;
     for (const item of grp.items) {
-      // Use a checkbox-style toggle for work items (binary on/off)
       html += `<div class="checklist-item work-item" data-check-name="${sec.id}__${item.id}">
         <div class="work-checkbox" data-check-name="${sec.id}__${item.id}" data-binary="true">
           <span class="work-check-mark">✓</span>
@@ -1971,7 +1914,6 @@ function buildWorkChecklist(sec) {
     wrap.appendChild(g);
   }
 
-  // Click handler for work checkboxes: toggle on/off, store value as 'done' or empty
   wrap.addEventListener('click', (e) => {
     const cb = e.target.closest('.work-checkbox');
     if (!cb) return;
@@ -1993,10 +1935,8 @@ function countSectionFilled(sec) {
       if (el && el.value && el.value.trim()) filled++;
     }
   } else if (sec.type === 'rudderGrid') {
-    // Only count cells in the locations the user has selected
     const locInput = document.querySelector(`input[name="${sec.id}__locations"]`);
     const active = new Set((locInput?.value || '').split(',').filter(Boolean));
-    // Map column keys to location: cBP/cAP/cLBP/cLAP -> center, p* -> port, s* -> stbd
     const colLoc = (id) => {
       if (id.startsWith('c')) return 'center';
       if (id.startsWith('p')) return 'port';
@@ -2006,7 +1946,7 @@ function countSectionFilled(sec) {
     for (const block of sec.blocks) {
       for (const c of sec.cols) {
         const loc = colLoc(c.id);
-        if (active.size > 0 && !active.has(loc)) continue; // skip cells whose side isn't toggled
+        if (active.size > 0 && !active.has(loc)) continue;
         for (const pos of sec.positions) {
           total++;
           const el = document.querySelector(`[name="${sec.id}__${block.id}_${c.id}_${pos.id}"]`);
@@ -2014,7 +1954,6 @@ function countSectionFilled(sec) {
         }
       }
     }
-    // Bearing details — count only for active sides, 2 cells per row (stock + pintle)
     if (sec.bearingDetails) {
       const bd = sec.bearingDetails;
       for (const f of bd.fields) {
@@ -2029,7 +1968,6 @@ function countSectionFilled(sec) {
       }
     }
   } else if (sec.type === 'tailshaftGrid' || sec.type === 'propellerGrid') {
-    // Both now use location toggles
     const useLoc = (sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid');
     let active = new Set();
     if (useLoc) {
@@ -2048,7 +1986,6 @@ function countSectionFilled(sec) {
       const el = document.querySelector(`[name="${sec.id}__${r.id}_${c.id}"]`);
       if (el && el.value && el.value.trim()) filled++;
     }
-    // Propeller bearing details (3 columns per side: outboard / inboard / strut)
     if (sec.bearingDetails) {
       const bd = sec.bearingDetails;
       for (const f of bd.fields) {
@@ -2113,18 +2050,15 @@ function updateAllProgress() {
    ========================================================================= */
 function collectFormData() {
   const data = {};
-  // Plain inputs / textareas
   for (const el of document.querySelectorAll('#entryForm input, #entryForm textarea')) {
     if (!el.name) continue;
     data[el.name] = el.value;
   }
-  // Check trios (Test Report Pass/Fail/N-A pills, Type of Repair pills)
   for (const trio of document.querySelectorAll('#entryForm .check-trio')) {
     const name = trio.dataset.checkName;
     const active = trio.querySelector('.check-pill.active');
     data[name] = active ? active.dataset.val : '';
   }
-  // Work item checkboxes (binary done/not done)
   for (const cb of document.querySelectorAll('#entryForm .work-checkbox')) {
     const name = cb.dataset.checkName;
     data[name] = cb.classList.contains('checked') ? 'done' : '';
@@ -2150,18 +2084,15 @@ function fillFormData(data) {
       }
     }
   }
-  // Work item checkboxes
   for (const cb of document.querySelectorAll('#entryForm .work-checkbox')) {
     const name = cb.dataset.checkName;
     cb.classList.toggle('checked', !!data[name]);
   }
-  // Restore location toggle states for sections that use them (rudder, propeller, tailshaft)
   for (const sec of SCHEMA) {
     if (sec.type === 'rudderGrid' || sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid') {
       restoreLocationToggles(sec.id, data[`${sec.id}__locations`] || '');
     }
   }
-  // Restore pullout state for blocks that have them (rudder stock, pintle, propeller clearance)
   for (const sec of SCHEMA) {
     if (sec.type === 'rudderGrid' && sec.blocks) {
       for (const block of sec.blocks) {
@@ -2173,7 +2104,6 @@ function fillFormData(data) {
       restorePulloutToggle(blockId, data[`${blockId}_pulledSides`] || '');
     }
   }
-  // Restore "2nd docking" toggle for Vessel Schedule (auto-show row if user had filled in 2nd dates)
   const hadSecondDocking = (data['vesselSchedule__hasSecondDocking'] || '') === 'yes' ||
     !!data['vesselSchedule__secondDockingDate'] || !!data['vesselSchedule__secondUndockingDate'];
   restoreSecondDockingToggle('vesselSchedule', hadSecondDocking ? 'yes' : '');
@@ -2184,14 +2114,12 @@ function clearForm() {
   document.getElementById('entryForm').reset();
   document.querySelectorAll('.check-pill.active').forEach(p => p.classList.remove('active','passed','failed','na'));
   document.querySelectorAll('.work-checkbox.checked').forEach(c => c.classList.remove('checked'));
-  // Reset location toggles
   document.querySelectorAll('.loc-pill.active').forEach(p => p.classList.remove('active'));
   for (const sec of SCHEMA) {
     if (sec.type === 'rudderGrid' || sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid') {
       applyLocationToggles(sec.id);
     }
   }
-  // Reset pullout state to empty (no sides pulled)
   for (const sec of SCHEMA) {
     if (sec.type === 'rudderGrid' && sec.blocks) {
       for (const block of sec.blocks) {
@@ -2201,7 +2129,6 @@ function clearForm() {
       restorePulloutToggle(`${sec.id}__clearance`, '');
     }
   }
-  // Reset 2nd docking toggle
   applySecondDockingToggle('vesselSchedule', false);
   updateAllProgress();
 }
@@ -2238,7 +2165,6 @@ async function saveEntry(asComplete) {
   if (asComplete) delete entry.errorMsg;
   await dbPut(entry);
 
-  // Remember company/transmitter values for autocomplete
   await recordAutocompleteFromData(data);
 
   if (asComplete) {
@@ -2286,13 +2212,11 @@ $('#completeBtn').addEventListener('click', () => {
   saveEntry(true);
 });
 
-// Update draft bar live as user types vessel info
 document.addEventListener('input', (e) => {
   if (e.target.matches('[name="shipsData__projectNo"], [name="shipsData__vesselName"]')) updateDraftBar();
   if (e.target.closest('#entryForm')) updateAllProgress();
 });
 
-// Location toggle pill clicks (Rudder, Propeller side selectors)
 document.addEventListener('click', (e) => {
   const pill = e.target.closest('.loc-pill');
   if (!pill) return;
@@ -2303,26 +2227,21 @@ document.addEventListener('click', (e) => {
 });
 
 function applyLocationToggles(sectionId) {
-  // Find all pills for this section, build active set
   const pills = document.querySelectorAll(`.loc-pill[data-sec="${sectionId}"]`);
   const active = new Set();
   pills.forEach(p => { if (p.classList.contains('active')) active.add(p.dataset.loc); });
 
-  // Show/hide tables
   const tables = document.querySelectorAll(`[data-loc-section="${sectionId}"]`);
   tables.forEach(t => {
     t.style.display = active.has(t.dataset.locGroup) ? '' : 'none';
   });
 
-  // Empty state visibility
   const empty = document.querySelector(`[data-loc-empty="${sectionId}"]`);
   if (empty) empty.style.display = active.size === 0 ? '' : 'none';
 
-  // Persist active set to hidden input (so drafts remember)
   const stateInput = document.querySelector(`input[name="${sectionId}__locations"]`);
   if (stateInput) stateInput.value = Array.from(active).sort().join(',');
 
-  // Refresh pullout blocks under this section (override rows depend on active sides)
   refreshAllPulloutBlocksInSection(sectionId);
 
   updateAllProgress();
@@ -2338,7 +2257,6 @@ function restoreLocationToggles(sectionId, csv) {
   applyLocationToggles(sectionId);
 }
 
-// Second docking toggle (Ships Data — show/hide the 2nd docking date row)
 document.addEventListener('click', (e) => {
   const tog = e.target.closest('.second-docking-toggle');
   if (!tog) return;
@@ -2350,16 +2268,13 @@ document.addEventListener('click', (e) => {
 function applySecondDockingToggle(sectionId, isChecked) {
   const tog = document.querySelector(`.second-docking-toggle[data-section="${sectionId}"]`);
   if (tog) tog.classList.toggle('checked', isChecked);
-  // Show/hide the 2nd docking row inside this section
   const sec = document.querySelector(`details[data-section-id="${sectionId}"]`);
   if (sec) {
     const row = sec.querySelector('.second-docking-row');
     if (row) row.classList.toggle('show', isChecked);
   }
-  // Persist state to hidden input
   const stateInput = document.querySelector(`input[name="${sectionId}__hasSecondDocking"]`);
   if (stateInput) stateInput.value = isChecked ? 'yes' : '';
-  // If toggling OFF, also clear any values in the 2nd docking date fields
   if (!isChecked) {
     const sd = document.querySelector(`input[name="${sectionId}__secondDockingDate"]`);
     const su = document.querySelector(`input[name="${sectionId}__secondUndockingDate"]`);
@@ -2374,7 +2289,6 @@ function restoreSecondDockingToggle(sectionId, savedVal) {
   applySecondDockingToggle(sectionId, isChecked);
 }
 
-// Pullout per-side checkbox clicks (Rudder Stock, Pintle Bushing, Propeller Clearance)
 document.addEventListener('click', (e) => {
   const row = e.target.closest('.pullout-side-row');
   if (!row) return;
@@ -2383,7 +2297,6 @@ document.addEventListener('click', (e) => {
   if (!blockEl) return;
   const blockId = blockEl.dataset.pulloutBlock;
   const side = row.dataset.side;
-  // Find the hidden CSV state input (the name suffix is _pulledSides)
   const stateInput = document.querySelector(`input[name="${blockId}_pulledSides"]`);
   if (!stateInput) return;
   const set = new Set((stateInput.value || '').split(',').filter(Boolean));
@@ -2393,19 +2306,16 @@ document.addEventListener('click', (e) => {
   refreshPulloutBlock(blockId);
 });
 
-// Update UI of a pullout block: which sides have AP shown, which checkboxes appear
 function refreshPulloutBlock(blockId) {
   const blockEl = document.querySelector(`[data-pullout-block="${blockId}"].grid-block`);
   if (!blockEl) return;
   const stateInput = document.querySelector(`input[name="${blockId}_pulledSides"]`);
   const pulled = new Set((stateInput?.value || '').split(',').filter(Boolean));
 
-  // For each side: if pulled → show AP (remove not-pulled-X class); if not pulled → hide AP (add class)
   for (const side of ['center', 'port', 'stbd']) {
     blockEl.classList.toggle(`not-pulled-${side}`, !pulled.has(side));
   }
 
-  // Hide checkbox rows for sides that aren't active at the section level
   const sectionId = blockId.split('__')[0];
   const activePills = document.querySelectorAll(`.loc-pill.active[data-sec="${sectionId}"]`);
   const activeSides = new Set();
@@ -2417,8 +2327,6 @@ function refreshPulloutBlock(blockId) {
     row.classList.toggle('checked', pulled.has(row.dataset.side));
   });
 
-  // Hide the entire pullout block (including the title and amber box) when no sides are active.
-  // The block re-appears as soon as the user toggles on Center, Portside, or Starboard above.
   const ptBlock = blockEl.querySelector('.pullout-block');
   if (ptBlock) {
     ptBlock.style.display = activeSides.size === 0 ? 'none' : '';
@@ -2427,7 +2335,6 @@ function refreshPulloutBlock(blockId) {
   updateAllProgress();
 }
 
-// When section's location pills change, refresh all pullout blocks under it
 function refreshAllPulloutBlocksInSection(sectionId) {
   document.querySelectorAll(`[data-pullout-block^="${sectionId}__"].grid-block`).forEach(b => {
     refreshPulloutBlock(b.dataset.pulloutBlock);
@@ -2481,14 +2388,11 @@ function buildSheetWrites(data) {
       }
     } else if (sec.type === 'rudderGrid') {
       for (const block of sec.blocks) {
-        // Per-side pullout state: comma-separated list of pulled sides
         const pulledSides = new Set(
           (data[`${sec.id}__${block.id}_pulledSides`] || '').split(',').filter(Boolean)
         );
-        // A side is "not pulled out" if it's NOT in the pulledSides set → BP mirrors to AP
         function isSideNotPulled(side) { return !pulledSides.has(side); }
 
-        // Map a col id to its side. Rudder col ids start with 'c' (center), 'p' (port), 's' (stbd)
         function colSide(colId) {
           const first = (colId || '').charAt(0);
           if (first === 'p') return 'port';
@@ -2506,7 +2410,6 @@ function buildSheetWrites(data) {
             const row = block.baseRow + pos.offset;
             writes.push({ sheet: sec.sheet, range: `${c.col}${row}`, value: v });
 
-            // If this side is not pulled AND this is a BP cell, mirror to AP twin
             if (isSideNotPulled(colSide(c.id)) && /BP$/.test(c.id)) {
               const apId = c.id.replace(/BP$/, 'AP');
               const apCol = colsById[apId];
@@ -2517,7 +2420,6 @@ function buildSheetWrites(data) {
           }
         }
       }
-      // Bearing Details — also write to RUDDER tab
       if (sec.bearingDetails) {
         const bd = sec.bearingDetails;
         for (const f of bd.fields) {
@@ -2530,7 +2432,6 @@ function buildSheetWrites(data) {
         }
       }
     } else if (sec.type === 'tailshaftGrid' || sec.type === 'propellerGrid') {
-      // Per-side pullout state: comma-separated list of pulled sides (only meaningful for propeller)
       const isPropeller = sec.type === 'propellerGrid';
       const pulledSides = isPropeller
         ? new Set((data[`${sec.id}__clearance_pulledSides`] || '').split(',').filter(Boolean))
@@ -2552,7 +2453,6 @@ function buildSheetWrites(data) {
         if (!v) continue;
         writes.push({ sheet: sec.sheet, range: `${c.col}${r.row}`, value: v });
 
-        // Mirror BP→AP when this side is "not pulled out"
         if (isPropeller && / BP$/i.test(c.label) && propSideNotPulled(colSideFromLabel(c.label))) {
           const apLabel = c.label.replace(/ BP$/i, ' AP').toUpperCase();
           const apCol = colsByLabel[apLabel];
@@ -2561,7 +2461,6 @@ function buildSheetWrites(data) {
           }
         }
       }
-      // Propeller Bearing Details — also write to PROPELLER tab (3 columns per side)
       if (sec.bearingDetails) {
         const bd = sec.bearingDetails;
         for (const f of bd.fields) {
@@ -2592,9 +2491,6 @@ function buildSheetWrites(data) {
     } else if (sec.type === 'checklist') {
       for (const grp of sec.groups) for (const item of grp.items) {
         const v = data[`${sec.id}__${item.id}`] || '';
-        // Pass: passCell=True, failCell=False
-        // Fail: passCell=False, failCell=True
-        // N/A or empty: both False
         let passVal = false, failVal = false;
         if (v === 'passed') passVal = true;
         else if (v === 'failed') failVal = true;
@@ -2606,31 +2502,25 @@ function buildSheetWrites(data) {
         if (v) writes.push({ sheet: sec.sheet, range: f.cell, value: v });
       }
     } else if (sec.type === 'workChecklist') {
-      // Type of repair — write to both WORK DONE and WORK DONE 2 (so both pages display same state)
+      // Type of repair — write to both WORK DONE and WORK DONE 2
       const tor = data['workDone__typeRepair'] || '';
       const tre = sec.typeOfRepair;
-      // Support both old and new schema shapes
       if (tre.regularCells) {
         for (const c of tre.regularCells) writes.push({ sheet: c.sheet, range: c.cell, value: tor === 'regular' });
         for (const c of tre.emergencyCells) writes.push({ sheet: c.sheet, range: c.cell, value: tor === 'emergency' });
       } else if (tre.regularCell) {
-        // Legacy single-cell schema
         writes.push({ sheet: sec.sheet, range: tre.regularCell, value: tor === 'regular' });
         writes.push({ sheet: sec.sheet, range: tre.emergencyCell, value: tor === 'emergency' });
       }
-      // Items: write "✓" to column A of the work row (per-group sheet).
+      // Items: NO ✓ writes to column A (template's column A holds merged "No. X" labels —
+      // writing to those merged ranges breaks the merge). The hide-rows logic below removes
+      // unchecked rows, so visible rows in the resulting PDF = items that were done.
+      // We DO still write any per-item location notes (column P) for items that were checked.
       for (const grp of sec.groups) {
         const grpSheet = grp.sheet || sec.sheet;
         for (const item of grp.items) {
           const v = data[`${sec.id}__${item.id}`] || '';
-          // checkCell format is "A##_check" or "B##_check" — extract row number
-          const m = item.checkCell.match(/^[A-Z]+(\d+)_check$/);
-          if (!m) continue;
-          const rowNum = m[1];
-          if (v) {
-            writes.push({ sheet: grpSheet, range: `A${rowNum}`, value: '✓' });
-          }
-          if (item.locationCell) {
+          if (v && item.locationCell) {
             const loc = data[`${sec.id}__${item.id}_loc`] || '';
             if (loc) writes.push({ sheet: grpSheet, range: item.locationCell, value: loc });
           }
@@ -2642,13 +2532,6 @@ function buildSheetWrites(data) {
 }
 
 // Search a parent folder for a sub-folder whose NAME starts with the given project number.
-// Returns the matched sub-folder's ID, or null if no match.
-//
-// Example: parentFolderId = "FD 2026", projectNo = "26-004"
-//          → finds the "26-004 MTUG DON PILO" sub-folder and returns its ID.
-//
-// We escape single quotes in the project number (prefix) for the Drive search query
-// since Drive's `q` parameter wraps strings in single quotes.
 async function findVesselFolder(parentFolderId, projectNo) {
   if (!parentFolderId || !projectNo) return null;
   const safePrefix = projectNo.replace(/'/g, "\\'");
@@ -2661,8 +2544,6 @@ async function findVesselFolder(parentFolderId, projectNo) {
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=20&supportsAllDrives=true&includeItemsFromAllDrives=true`;
   const res = await gFetch(url);
   const files = (res && res.files) || [];
-  // Drive's `name contains` is a substring match (not strict prefix). Filter to ensure
-  // the name actually starts with the project number, not just contains it somewhere.
   const startsMatch = files.find(f =>
     (f.name || '').trim().toLowerCase().startsWith(projectNo.trim().toLowerCase())
   );
@@ -2676,21 +2557,16 @@ async function syncEntry(entry) {
   const vesselClean = (vesselName || 'VESSEL').replace(/[\\\/:*?"<>|]/g, '');
   const fileName = `${projectNo} ${vesselClean}`.trim();
 
-  // Resolve target folder: if a fallback folder is configured, try to find a sub-folder
-  // whose name starts with the project number (e.g., "26-004 MTUG DON PILO"). If found,
-  // save inside that vessel-specific folder. Otherwise use the configured folder root.
   let targetFolderId = config.folderId || null;
   if (config.folderId && projectNo) {
     try {
       const matchedFolderId = await findVesselFolder(config.folderId, projectNo);
       if (matchedFolderId) targetFolderId = matchedFolderId;
     } catch (e) {
-      // Folder search failed — fall through to using config.folderId. Don't break the sync.
       console.warn('Vessel folder search failed, using fallback folder', e);
     }
   }
 
-  // 1. Copy template into the target folder
   const copyBody = { name: fileName };
   if (targetFolderId) copyBody.parents = [targetFolderId];
   const newFile = await gFetch(
@@ -2698,14 +2574,12 @@ async function syncEntry(entry) {
     { method: 'POST', body: JSON.stringify(copyBody) }
   );
 
-  // 2. Build write list and group by sheet
   const writes = buildSheetWrites(data);
   const valueRanges = writes.map(w => ({
     range: `'${w.sheet}'!${w.range}`,
     values: [[w.value]]
   }));
 
-  // 3. Send value writes in chunks
   const CHUNK = 250;
   for (let i = 0; i < valueRanges.length; i += CHUNK) {
     await gFetch(
@@ -2720,10 +2594,8 @@ async function syncEntry(entry) {
     );
   }
 
-  // 4. Compute rows to hide for Work Done and Test Report
   const hideRequests = await buildHideRowsRequests(data, newFile.id);
   if (hideRequests.length > 0) {
-    // Send in chunks of 50 to keep request size reasonable
     const HCHUNK = 50;
     for (let i = 0; i < hideRequests.length; i += HCHUNK) {
       await gFetch(
@@ -2736,44 +2608,32 @@ async function syncEntry(entry) {
     }
   }
 
-  // 4b. Renumber Work Done categories — if a category has no checked items, the next
-  // non-empty category takes its number (e.g., No. 7 empty + No. 8 has work → No. 8 becomes No. 7).
   await renumberWorkDoneCategories(data, newFile.id);
 
-  // 5. Generate PDF and upload it to the same folder
   let pdfFileId = null, pdfFileName = null;
   try {
     const pdfResult = await generateAndUploadPDF(newFile.id, data);
     pdfFileId = pdfResult.fileId;
     pdfFileName = pdfResult.fileName;
   } catch (pdfErr) {
-    // PDF failure is non-fatal — Sheet is already saved. Surface a soft warning.
     console.warn('PDF generation failed:', pdfErr);
   }
 
   return { fileId: newFile.id, fileName, pdfFileId, pdfFileName };
 }
 
-// Tabs to include in the PDF (user-selected; everything else gets temporarily hidden during export)
 const PDF_TABS = [
   'TRANSMITTAL', 'RUDDER', 'CHAIN CALIB.', 'TEST REPORT',
   'PROPELLER', 'LOAD LINE', 'WORK DONE', 'WORK DONE 2', 'CERT. DRYDOCK', 'LIST OF VESSEL'
 ];
 
-// Generate PDF (selected tabs only) from a spreadsheet, then upload to the same Drive folder.
-// Strategy: Google's /export endpoint returns ALL VISIBLE sheets when no gid is given. So we
-// temporarily hide the unwanted tabs, do the export, then unhide them — leaving the
-// spreadsheet in its original state for the user.
 async function generateAndUploadPDF(spreadsheetId, data) {
-  // 1. Get sheet metadata to look up sheetIds
   const meta = await gFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title,hidden))`
   );
   const allSheets = (meta.sheets || []).map(s => s.properties);
   const include = new Set(PDF_TABS);
 
-  // Special case: if no items in WORK DONE 2 are checked, hide it from the PDF entirely.
-  // This avoids printing a "page 2" that has only headers and signatures with no work content.
   const wd = SCHEMA.find(s => s.id === 'workDone');
   if (wd) {
     const wd2HasChecked = wd.groups
@@ -2784,12 +2644,9 @@ async function generateAndUploadPDF(spreadsheetId, data) {
     }
   }
 
-  // Tabs to hide for the PDF export (the ones NOT in our include list,
-  // and which weren't already hidden in the template)
   const tabsToHide = allSheets.filter(p => !include.has(p.title) && !p.hidden);
-  const tabsToUnhide = tabsToHide.slice(); // will restore after export
+  const tabsToUnhide = tabsToHide.slice();
 
-  // 2. Hide the unwanted tabs (so the export only includes our 9 chosen tabs)
   if (tabsToHide.length > 0) {
     const hideRequests = tabsToHide.map(p => ({
       updateSheetProperties: {
@@ -2805,7 +2662,6 @@ async function generateAndUploadPDF(spreadsheetId, data) {
 
   let pdfBlob;
   try {
-    // 3. Export to PDF (no gid = all visible sheets)
     const params = new URLSearchParams();
     params.set('format', 'pdf');
     params.set('size', 'A4');
@@ -2828,7 +2684,6 @@ async function generateAndUploadPDF(spreadsheetId, data) {
     }
     pdfBlob = await pdfResp.blob();
   } finally {
-    // 4. Unhide tabs we hid (always run, even if export failed)
     if (tabsToUnhide.length > 0) {
       const unhideRequests = tabsToUnhide.map(p => ({
         updateSheetProperties: {
@@ -2847,13 +2702,11 @@ async function generateAndUploadPDF(spreadsheetId, data) {
     }
   }
 
-  // 5. Build PDF filename per pattern: "[ProjectNo] [VesselName] DRYDOCKING REPORT.pdf"
   const projectNo = (data['shipsData__projectNo'] || '').trim();
   const vesselName = (data['shipsData__vesselName'] || 'VESSEL').trim();
   const cleanVessel = vesselName.replace(/[\\\/:*?"<>|]/g, '');
   const pdfFileName = `${projectNo} ${cleanVessel} DRYDOCKING REPORT.pdf`.trim();
 
-  // Resolve target folder for PDF — same logic as syncEntry: prefer vessel-specific sub-folder
   let pdfTargetFolderId = config.folderId || null;
   if (config.folderId && projectNo) {
     try {
@@ -2864,7 +2717,6 @@ async function generateAndUploadPDF(spreadsheetId, data) {
     }
   }
 
-  // 6. Upload to Drive (multipart so we can set name + parents in one shot)
   const metadata = { name: pdfFileName, mimeType: 'application/pdf' };
   if (pdfTargetFolderId) metadata.parents = [pdfTargetFolderId];
 
@@ -2898,32 +2750,26 @@ async function generateAndUploadPDF(spreadsheetId, data) {
   return { fileId: uploaded.id, fileName: pdfFileName };
 }
 
-// Build "hide row" requests for Sheets API spreadsheets:batchUpdate.
-// Returns [] if nothing to hide.
 // Renumber Work Done categories so empty ones get skipped over.
-// Example: if No. 7 has no checked items but No. 8 does, No. 8's row gets relabeled "No. 7".
-// Also handles the No. 5 continuation header (rows 37 + 63 — same group, both must show same number).
 async function renumberWorkDoneCategories(data, spreadsheetId) {
   const wd = SCHEMA.find(s => s.id === 'workDone');
   if (!wd) return;
 
-  // Walk groups in order. For each, determine whether any item is checked.
-  // Non-empty groups get sequential numbers (1, 2, 3, ...). Empty groups keep their original
-  // number but their row will be hidden anyway, so it doesn't matter.
-  // Numbering spans both tabs (WORK DONE + WORK DONE 2) — e.g., if No. 1 is on WORK DONE
-  // and No. 5 (in WORK DONE 2) is the second non-empty group, No. 5 becomes "No. 2".
   let nextNum = 0;
-  const valueWrites = []; // {range, values}
+  const valueWrites = [];
   for (const grp of wd.groups) {
     const hasChecked = grp.items.some(it =>
       (data[`workDone__${it.id}`] || '').toString().trim() !== ''
     );
-    if (!hasChecked) continue; // Skip empty groups — their header row is hidden anyway
+    if (!hasChecked) continue;
     nextNum += 1;
     if (grp.headerRow) {
       const grpSheet = grp.sheet || wd.sheet;
+      // Write "No. X" to the FIRST cell of the merged column-A range (headerRow + 1).
+      // headerRow itself is the sub-header row (e.g., "Dock Works" in column B), with
+      // column A empty. The merged "No. X" cell starts on the row immediately below.
       valueWrites.push({
-        range: `'${grpSheet}'!A${grp.headerRow}`,
+        range: `'${grpSheet}'!A${grp.headerRow + 1}`,
         values: [[`No. ${nextNum}`]]
       });
     }
@@ -2945,7 +2791,6 @@ async function renumberWorkDoneCategories(data, spreadsheetId) {
 async function buildHideRowsRequests(data, spreadsheetId) {
   const requests = [];
 
-  // First, fetch the spreadsheet metadata to map sheet names → numeric sheetIds
   const meta = await gFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title))`
   );
@@ -2954,11 +2799,10 @@ async function buildHideRowsRequests(data, spreadsheetId) {
     sheetIdByName[s.properties.title] = s.properties.sheetId;
   }
 
-  // ---- WORK DONE (across both tabs: WORK DONE and WORK DONE 2) ----
+  // ---- WORK DONE (across both tabs) ----
   const wd = SCHEMA.find(s => s.id === 'workDone');
   if (wd) {
-    // Group rows-to-hide per sheet name, then resolve sheet IDs and emit requests.
-    const rowsBySheet = {}; // { 'WORK DONE': [17,18,...], 'WORK DONE 2': [17,...] }
+    const rowsBySheet = {};
     for (const grp of wd.groups) {
       const grpSheet = grp.sheet || wd.sheet;
       if (!rowsBySheet[grpSheet]) rowsBySheet[grpSheet] = [];
@@ -2970,7 +2814,7 @@ async function buildHideRowsRequests(data, spreadsheetId) {
           if (m) rowsBySheet[grpSheet].push(parseInt(m[1], 10));
         }
       }
-      // Hide category header if no items in this group are checked
+      // Hide category sub-header row if no items in this group are checked
       const hasChecked = grp.items.some(it =>
         (data[`workDone__${it.id}`] || '').toString().trim() !== ''
       );
@@ -2992,13 +2836,10 @@ async function buildHideRowsRequests(data, spreadsheetId) {
   if (tr && trSheetId !== undefined) {
     const rowsToHide = [];
     for (const grp of tr.groups) {
-      // Hide every item row that wasn't marked Passed or Failed
       for (const it of grp.items) {
         const v = data[`testReport__${it.id}`] || '';
         if (!v && it.row) rowsToHide.push(it.row);
       }
-      // Category headers ALWAYS stay visible (e.g. "BOTTOM PLATE / LEAK TEST"
-      // and "PASSED / FAILED / REWORK") even if no items underneath are checked.
     }
     requests.push(...rowRangesToHideRequests(trSheetId, rowsToHide));
   }
@@ -3006,8 +2847,6 @@ async function buildHideRowsRequests(data, spreadsheetId) {
   return requests;
 }
 
-// Convert a list of row numbers (1-indexed) into Sheets API "hide" requests.
-// Coalesces consecutive rows into ranges to minimize the number of requests.
 function rowRangesToHideRequests(sheetId, rowNumbers) {
   const sorted = Array.from(new Set(rowNumbers)).sort((a, b) => a - b);
   const ranges = [];
@@ -3025,9 +2864,8 @@ function rowRangesToHideRequests(sheetId, rowNumbers) {
       range: {
         sheetId: sheetId,
         dimension: 'ROWS',
-        // API uses 0-indexed half-open: [startIndex, endIndex)
         startIndex: s - 1,
-        endIndex: e // because endIndex is exclusive and Sheet rows are 1-indexed
+        endIndex: e
       },
       properties: { hiddenByUser: true },
       fields: 'hiddenByUser'
@@ -3100,7 +2938,6 @@ async function renderDrafts() {
     const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
     const company = d['shipsData__companyName'] || '';
     const updated = new Date(e.updatedAt || e.createdAt).toLocaleString();
-    // count overall fill
     const fillCount = countOverall(d);
     return `<div class="list-item draft" data-id="${e.id}">
       <div class="list-head">
@@ -3121,7 +2958,6 @@ async function renderDrafts() {
 }
 
 function countOverall(data) {
-  // Count via SCHEMA — same counting logic but data-only
   let total = 0, filled = 0;
   const colLoc = (id) => {
     if (id.startsWith('c')) return 'center';
@@ -3144,7 +2980,6 @@ function countOverall(data) {
           if ((data[`${sec.id}__${block.id}_${c.id}_${pos.id}`] || '').toString().trim()) filled++;
         }
       }
-      // Bearing details
       if (sec.bearingDetails) {
         const bd = sec.bearingDetails;
         for (const f of bd.fields) for (const side of bd.sides) {
@@ -3163,7 +2998,6 @@ function countOverall(data) {
         total++;
         if ((data[`${sec.id}__${r.id}_${c.id}`] || '').toString().trim()) filled++;
       }
-      // Propeller bearing details (3 columns per side: outboard / inboard / strut)
       if (sec.bearingDetails) {
         const bd = sec.bearingDetails;
         for (const f of bd.fields) for (const side of bd.sides) {
@@ -3326,7 +3160,6 @@ function _renderRecallDropdown(input) {
       : items;
 
     if (filtered.length === 0) {
-      // If no items match, hide the dropdown (don't show "empty" — distracting)
       dropdown.classList.remove('open');
       dropdown.innerHTML = '';
       return;
@@ -3351,14 +3184,11 @@ function _closeAllRecalls() {
   _recallActiveInput = null;
 }
 
-// Show dropdown on focus
 document.addEventListener('focusin', (e) => {
   const input = e.target.closest('[data-recall]');
   if (!input) {
-    // Closed by clicking elsewhere — but only if focus didn't move to an item
     setTimeout(() => {
       if (!document.querySelector('.recall-item:hover, .recall-item-delete:hover')) {
-        // Only close if not currently interacting with a dropdown
         const af = document.activeElement;
         if (!af || !af.closest('[data-recall]')) _closeAllRecalls();
       }
@@ -3369,15 +3199,12 @@ document.addEventListener('focusin', (e) => {
   _renderRecallDropdown(input);
 });
 
-// Filter as user types
 document.addEventListener('input', (e) => {
   const input = e.target.closest('[data-recall]');
   if (input) _renderRecallDropdown(input);
 });
 
-// Click item to fill, click × to delete
 document.addEventListener('mousedown', (e) => {
-  // Use mousedown so we run before the focusout/blur logic closes the dropdown
   const delBtn = e.target.closest('[data-recall-delete]');
   if (delBtn) {
     e.preventDefault();
@@ -3399,7 +3226,6 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 document.addEventListener('touchstart', (e) => {
-  // Same logic for touch (mobile primary path)
   const delBtn = e.target.closest('[data-recall-delete]');
   if (delBtn) {
     e.preventDefault();
@@ -3421,14 +3247,12 @@ document.addEventListener('touchstart', (e) => {
   }
 }, { passive: false });
 
-// Close dropdown when clicking outside the field
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[data-recall], .recall-dropdown')) {
     _closeAllRecalls();
   }
 });
 
-// After saving an entry (draft or complete), persist autocomplete values
 async function recordAutocompleteFromData(data) {
   for (const fieldName of AUTOCOMPLETE_FIELDS) {
     const v = (data[fieldName] || '').trim();
@@ -3440,7 +3264,6 @@ async function recordAutocompleteFromData(data) {
    INIT
    ========================================================================= */
 buildForm();
-// Initialize pullout block visibility (hidden when no sides active at the section level)
 for (const sec of SCHEMA) {
   if (sec.type === 'rudderGrid' && sec.blocks) {
     for (const block of sec.blocks) refreshPulloutBlock(`${sec.id}__${block.id}`);
