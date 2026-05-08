@@ -2717,18 +2717,23 @@ async function generateAndUploadPDF(spreadsheetId, data) {
 
   let pdfBlob;
   try {
-    // Try the docs.google.com export first because it accepts formatting params
-    // (size, orientation, fit-to-width). However, this endpoint sometimes returns
-    // HTML (sign-in page or error page) instead of a real PDF when the OAuth token
-    // doesn't authenticate against docs.google.com cleanly. We validate the result
-    // and fall back to the Drive API export if needed.
-    pdfBlob = await tryDocsExport(spreadsheetId);
+    // Use the Drive API export first because it respects the spreadsheet's PER-TAB
+    // print settings (Scale: Fit to Page, Normal, etc. — set in the master template
+    // via File → Print → Scale → Save). This gives us proper page sizing where each
+    // tab uses its own saved scale (e.g., short tabs fit-to-page, multi-page tabs
+    // like CHAIN CALIB. stay at Normal so they're not squashed).
+    //
+    // The docs.google.com export ignores per-tab settings and applies the URL params
+    // (scale, fitw, etc.) globally — which forces all tabs to use the same setting
+    // and overrides what the user configured in the master template.
+    pdfBlob = await tryDriveApiExport(spreadsheetId);
 
-    // Validate: real PDFs start with the bytes "%PDF". If not, this is HTML
-    // (almost certainly a sign-in/error page) — fall back to the Drive API.
+    // Validate: real PDFs start with the bytes "%PDF". If for any reason the Drive
+    // API didn't return a valid PDF, fall back to docs.google.com export as a
+    // last resort.
     if (!(await isPdfBlob(pdfBlob))) {
-      console.warn('docs.google.com export returned non-PDF — falling back to Drive API export');
-      pdfBlob = await tryDriveApiExport(spreadsheetId);
+      console.warn('Drive API export returned non-PDF — falling back to docs.google.com export');
+      pdfBlob = await tryDocsExport(spreadsheetId);
       if (!(await isPdfBlob(pdfBlob))) {
         throw new Error('Both PDF export endpoints returned non-PDF data. The Sheet was saved successfully, but the PDF could not be generated. You can manually download a PDF from the Sheet menu.');
       }
