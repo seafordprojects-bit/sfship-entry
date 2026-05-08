@@ -2643,7 +2643,11 @@ async function tryDocsExport(spreadsheetId) {
   params.set('format', 'pdf');
   params.set('size', 'A4');
   params.set('portrait', 'true');
-  params.set('fitw', 'true');
+  // scale: 1=Normal (100%), 2=Fit to Width, 3=Fit to Height, 4=Fit to Page.
+  // We use 4 (Fit to Page) so each tab fits cleanly on one page in BOTH dimensions —
+  // previously we used fitw=true (width only), which caused content slightly taller
+  // than one page to overflow with a big empty gap before the page break.
+  params.set('scale', '4');
   params.set('gridlines', 'false');
   params.set('printtitle', 'false');
   params.set('sheetnames', 'false');
