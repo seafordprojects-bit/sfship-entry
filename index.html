@@ -2725,6 +2725,16 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
 
   if (allErrors.length > 0) {
     console.warn('[per-tab PDF] some tabs failed:', allErrors);
+    // Show which tabs failed and the error messages, so the user can see them
+    // directly on phone (no developer console needed).
+    try {
+      const failedSummary = allErrors
+        .map(e => `${e.tabName}: ${e.error}`)
+        .join('\n');
+      toast(`PDF errors on ${allErrors.length} tab(s) — see alert`, 'error');
+      // Brief delay so toast appears first, then alert fires.
+      setTimeout(() => alert('Tabs that failed to PDF:\n\n' + failedSummary), 300);
+    } catch (_) { /* ignore display failures */ }
   }
   if (allSkipped.length > 0) {
     console.info('[per-tab PDF] some tabs skipped (no data):', allSkipped);
