@@ -3033,6 +3033,30 @@ async function buildHideRowsRequests(data, spreadsheetId) {
       const sid = sheetIdByName[sheetName];
       if (sid !== undefined) {
         requests.push(...rowRangesToHideRequests(sid, rows));
+
+        // Anchor the signature block at the bottom of the page. Layout:
+        //   rows 16-41: work item rows (editable)
+        //   row 42:     spacer row between items and signatures
+        //   rows 43-47: signature block (fixed position)
+        // When N item rows get hidden, the signature block visually shifts up by
+        // ~N * 21px. To keep signatures anchored at row 47's original position,
+        // we expand the spacer row (42) to absorb that lost space.
+        const SPACER_ROW = 42;          // row between items and signatures
+        const DEFAULT_ROW_HEIGHT = 21;  // px — matches Apps Script normalization
+        const hiddenCount = new Set(rows).size;
+        const expandedHeight = DEFAULT_ROW_HEIGHT + (hiddenCount * DEFAULT_ROW_HEIGHT);
+        requests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: sid,
+              dimension: 'ROWS',
+              startIndex: SPACER_ROW - 1, // 0-indexed
+              endIndex: SPACER_ROW
+            },
+            properties: { pixelSize: expandedHeight },
+            fields: 'pixelSize'
+          }
+        });
       }
     }
   }
