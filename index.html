@@ -2610,14 +2610,18 @@ async function syncEntry(entry) {
 
   await renumberWorkDoneCategories(data, newFile.id);
 
+  // Combined PDF generation is DISABLED. The browser-side combined export always had
+  // orphan signature pages (a Google Sheets export quirk we couldn't work around).
+  // Apps Script-generated per-tab PDFs (below) are the cleaner replacement.
+  // To re-enable, uncomment the block below.
   let pdfFileId = null, pdfFileName = null;
-  try {
-    const pdfResult = await generateAndUploadPDF(newFile.id, data);
-    pdfFileId = pdfResult.fileId;
-    pdfFileName = pdfResult.fileName;
-  } catch (pdfErr) {
-    console.warn('PDF generation failed:', pdfErr);
-  }
+  // try {
+  //   const pdfResult = await generateAndUploadPDF(newFile.id, data);
+  //   pdfFileId = pdfResult.fileId;
+  //   pdfFileName = pdfResult.fileName;
+  // } catch (pdfErr) {
+  //   console.warn('PDF generation failed:', pdfErr);
+  // }
 
   // Per-tab PDFs via Apps Script. The browser-side per-tab export approach didn't
   // work because Google's docs.google.com export endpoint rejects URL patterns
