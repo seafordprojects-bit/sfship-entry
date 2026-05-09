@@ -3062,18 +3062,13 @@ async function buildHideRowsRequests(data, spreadsheetId) {
   }
 
   // ---- TEST REPORT ----
-  const tr = SCHEMA.find(s => s.id === 'testReport');
-  const trSheetId = sheetIdByName[tr.sheet];
-  if (tr && trSheetId !== undefined) {
-    const rowsToHide = [];
-    for (const grp of tr.groups) {
-      for (const it of grp.items) {
-        const v = data[`testReport__${it.id}`] || '';
-        if (!v && it.row) rowsToHide.push(it.row);
-      }
-    }
-    requests.push(...rowRangesToHideRequests(trSheetId, rowsToHide));
-  }
+  // Per user preference: do NOT hide unchecked test report items. The form
+  // should show every test row, with checked items marked (Passed/Failed/N/A)
+  // and unchecked items left blank but visible. This matches how the printed
+  // form is read at the yard — every line is a checklist item the inspector
+  // saw, even if no determination was made.
+  // (Hiding logic intentionally removed; previously we hid rows where the
+  // pass/fail/na value was empty.)
 
   return requests;
 }
