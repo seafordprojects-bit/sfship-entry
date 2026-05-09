@@ -2643,11 +2643,11 @@ async function tryDocsExport(spreadsheetId) {
   params.set('format', 'pdf');
   params.set('size', 'A4');
   params.set('portrait', 'true');
-  // scale: 1=Normal (100%), 2=Fit to Width, 3=Fit to Height, 4=Fit to Page.
-  // We use 4 (Fit to Page) so each tab fits cleanly on one page in BOTH dimensions —
-  // previously we used fitw=true (width only), which caused content slightly taller
-  // than one page to overflow with a big empty gap before the page break.
-  params.set('scale', '4');
+  // NOTE: No 'scale' or 'fitw' parameter here. Setting either of those overrides
+  // the spreadsheet's saved per-tab print settings (set by the user via File→Print
+  // in the master template). Letting the export use the saved settings means each
+  // tab respects its own scale (e.g. CHAIN CALIB. uses Normal so it spans 2 pages,
+  // other tabs use Fit-to-page for one-page reports).
   params.set('gridlines', 'false');
   params.set('printtitle', 'false');
   params.set('sheetnames', 'false');
@@ -2717,23 +2717,23 @@ async function generateAndUploadPDF(spreadsheetId, data) {
 
   let pdfBlob;
   try {
-    // Use the Drive API export first because it respects the spreadsheet's PER-TAB
-    // print settings (Scale: Fit to Page, Normal, etc. — set in the master template
-    // via File → Print → Scale → Save). This gives us proper page sizing where each
-    // tab uses its own saved scale (e.g., short tabs fit-to-page, multi-page tabs
-    // like CHAIN CALIB. stay at Normal so they're not squashed).
+    // Use the docs.google.com export first because it respects the spreadsheet's
+    // saved per-tab print settings (set in the master template via File → Print →
+    // Scale dropdown). This matches the behavior of File → Download → PDF in the
+    // Google Sheets UI, so tabs render the same way they look in the print preview.
     //
-    // The docs.google.com export ignores per-tab settings and applies the URL params
-    // (scale, fitw, etc.) globally — which forces all tabs to use the same setting
-    // and overrides what the user configured in the master template.
-    pdfBlob = await tryDriveApiExport(spreadsheetId);
+    // The Drive API export, while having more reliable token authentication, doesn't
+    // appear to honor per-tab scale settings — it uses Normal (100%) for everything,
+    // causing tabs that are slightly taller than one page to spill onto a 2nd page
+    // with orphan signature blocks.
+    pdfBlob = await tryDocsExport(spreadsheetId);
 
-    // Validate: real PDFs start with the bytes "%PDF". If for any reason the Drive
-    // API didn't return a valid PDF, fall back to docs.google.com export as a
-    // last resort.
+    // Validate: real PDFs start with the bytes "%PDF". If for any reason the docs
+    // export didn't return a valid PDF (token issue, redirect to sign-in page),
+    // fall back to the Drive API as a last resort.
     if (!(await isPdfBlob(pdfBlob))) {
-      console.warn('Drive API export returned non-PDF — falling back to docs.google.com export');
-      pdfBlob = await tryDocsExport(spreadsheetId);
+      console.warn('docs.google.com export returned non-PDF — falling back to Drive API export');
+      pdfBlob = await tryDriveApiExport(spreadsheetId);
       if (!(await isPdfBlob(pdfBlob))) {
         throw new Error('Both PDF export endpoints returned non-PDF data. The Sheet was saved successfully, but the PDF could not be generated. You can manually download a PDF from the Sheet menu.');
       }
