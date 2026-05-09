@@ -2736,12 +2736,14 @@ async function exportSingleTabPdf(spreadsheetId, gid, r2, c2) {
   params.set('c1', '0');              // 0-indexed: col 1
   params.set('r2', String(r2));       // exclusive upper bound = total row count
   params.set('c2', String(c2));       // exclusive upper bound = total col count
+  // Token as URL param (instead of Authorization header). Some Google export
+  // endpoints reject Bearer headers when gid/range params are present, returning
+  // an HTML sign-in page. Embedding the token in the URL bypasses that.
+  params.set('access_token', accessToken);
 
   const exportUrl =
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?${params.toString()}`;
-  const pdfResp = await fetch(exportUrl, {
-    headers: { 'Authorization': 'Bearer ' + accessToken }
-  });
+  const pdfResp = await fetch(exportUrl);
   if (!pdfResp.ok) {
     const txt = await pdfResp.text();
     throw new Error(`Single-tab PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
