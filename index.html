@@ -947,9 +947,13 @@ const SCHEMA = [
     type: 'chainGrid',
     shackleCount: 7,
     linksPerShackle: 4,
+    // Shackles 1-5 (idx 0-4) → 'CHAIN CALIB.'   rows 19..38 (4-row blocks)
+    // Shackles 6-7 (idx 5-6) → 'CHAIN CALIB. 2' rows 19..26 (4-row blocks)
     rowMap: function(shackleIdx, linkIdx) {
-      if (shackleIdx < 5) return 21 + shackleIdx * 4 + linkIdx;
-      return 69 + (shackleIdx - 5) * 4 + linkIdx;
+      if (shackleIdx < 5) {
+        return { sheet: 'CHAIN CALIB.',   row: 19 + shackleIdx * 4 + linkIdx };
+      }
+      return   { sheet: 'CHAIN CALIB. 2', row: 19 + (shackleIdx - 5) * 4 + linkIdx };
     },
     cols: {
       portX: 'C', portY: 'F',
@@ -2477,15 +2481,17 @@ function buildSheetWrites(data) {
     } else if (sec.type === 'chainGrid') {
       for (let s = 0; s < sec.shackleCount; s++) {
         for (let l = 0; l < sec.linksPerShackle; l++) {
-          const row = sec.rowMap(s, l);
+          const target = sec.rowMap(s, l);
+          const sheet = target.sheet;
+          const row   = target.row;
           const px = data[`chain__s${s}_l${l}_port_x`] || '';
           const py = data[`chain__s${s}_l${l}_port_y`] || '';
           const sx = data[`chain__s${s}_l${l}_stbd_x`] || '';
           const sy = data[`chain__s${s}_l${l}_stbd_y`] || '';
-          if (px) writes.push({ sheet: sec.sheet, range: `${sec.cols.portX}${row}`, value: px });
-          if (py) writes.push({ sheet: sec.sheet, range: `${sec.cols.portY}${row}`, value: py });
-          if (sx) writes.push({ sheet: sec.sheet, range: `${sec.cols.stbdX}${row}`, value: sx });
-          if (sy) writes.push({ sheet: sec.sheet, range: `${sec.cols.stbdY}${row}`, value: sy });
+          if (px) writes.push({ sheet, range: `${sec.cols.portX}${row}`, value: px });
+          if (py) writes.push({ sheet, range: `${sec.cols.portY}${row}`, value: py });
+          if (sx) writes.push({ sheet, range: `${sec.cols.stbdX}${row}`, value: sx });
+          if (sy) writes.push({ sheet, range: `${sec.cols.stbdY}${row}`, value: sy });
         }
       }
     } else if (sec.type === 'checklist') {
@@ -2652,6 +2658,11 @@ const APPS_SCRIPT_PER_TAB_PDF_URL =
 // Call the Apps Script Web App to generate per-tab PDFs for the synced spreadsheet.
 // Returns array of { fileId, fileName, tabName } for successfully created PDFs,
 // or empty array if anything fails.
+//
+// We split the work into batches of 4 tabs per call. Apps Script web app calls
+// are limited (browser-side ~60s, server-side hard 6min, but in practice exports
+// over ~30s have been unreliable on mobile). Three calls of 4 tabs each = ~20s
+// each, well under any timeout.
 async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
   if (!APPS_SCRIPT_PER_TAB_PDF_URL || APPS_SCRIPT_PER_TAB_PDF_URL.includes('PASTE_URL_HERE')) {
     return []; // Apps Script not configured — silently skip.
@@ -2659,28 +2670,70 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
   const projectNo = (data['shipsData__projectNo'] || '').trim();
   const vesselName = (data['shipsData__vesselName'] || '').trim();
 
-  // Note: we don't send the user's OAuth token. Apps Script runs as the project owner
-  // and has its own access to the user's Drive (granted during the first-run permission
-  // popup when the script was deployed). The Web App URL is "Anyone" access — anyone
-  // who has the URL can trigger PDF generation, so the URL is the de facto secret.
-  const resp = await fetch(APPS_SCRIPT_PER_TAB_PDF_URL, {
-    method: 'POST',
-    // 'text/plain' avoids a CORS preflight (Apps Script doesn't handle OPTIONS).
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ spreadsheetId, projectNo, vesselName })
-  });
-  if (!resp.ok) {
-    throw new Error(`Apps Script HTTP ${resp.status}`);
+  // We don't know totalTabs until the first response; use 12 as a safe upper
+  // bound (current PDF_TAB_CONFIG has 11 tabs, leaving headroom).
+  const BATCH_SIZE = 4;
+  const ASSUMED_MAX = 12;
+  const allUploaded = [];
+  const allErrors = [];
+  const allSkipped = [];
+
+  let actualTotal = ASSUMED_MAX;
+  let batchNumber = 0;
+
+  for (let start = 0; start < actualTotal; start += BATCH_SIZE) {
+    batchNumber += 1;
+    const end = Math.min(start + BATCH_SIZE, actualTotal);
+
+    // Note: we don't send the user's OAuth token. Apps Script runs as the project owner
+    // and has its own access to the user's Drive (granted during the first-run permission
+    // popup when the script was deployed). The Web App URL is "Anyone" access — anyone
+    // who has the URL can trigger PDF generation, so the URL is the de facto secret.
+    const resp = await fetch(APPS_SCRIPT_PER_TAB_PDF_URL, {
+      method: 'POST',
+      // 'text/plain' avoids a CORS preflight (Apps Script doesn't handle OPTIONS).
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        spreadsheetId,
+        projectNo,
+        vesselName,
+        startIndex: start,
+        endIndex: end,
+        // Skip the row-height normalize phase on every call after the first.
+        // That phase touches all tabs in the spreadsheet, so doing it once is enough.
+        skipNormalize: batchNumber > 1
+      })
+    });
+    if (!resp.ok) {
+      throw new Error(`Apps Script HTTP ${resp.status} (batch ${batchNumber})`);
+    }
+    const result = await resp.json();
+    if (!result.ok) {
+      throw new Error(result.error || `Apps Script ok=false (batch ${batchNumber})`);
+    }
+
+    // Update actualTotal from the first response so subsequent batches stop at
+    // the right point.
+    if (typeof result.totalTabs === 'number') {
+      actualTotal = result.totalTabs;
+    }
+
+    if (Array.isArray(result.uploaded)) allUploaded.push(...result.uploaded);
+    if (Array.isArray(result.errors))   allErrors.push(...result.errors);
+    if (Array.isArray(result.skipped))  allSkipped.push(...result.skipped);
   }
-  const result = await resp.json();
-  if (!result.ok) {
-    throw new Error(result.error || 'Apps Script returned ok=false');
+
+  if (allErrors.length > 0) {
+    console.warn('[per-tab PDF] some tabs failed:', allErrors);
   }
-  return result.uploaded || [];
+  if (allSkipped.length > 0) {
+    console.info('[per-tab PDF] some tabs skipped (no data):', allSkipped);
+  }
+  return allUploaded;
 }
 
 const PDF_TABS = [
-  'TRANSMITTAL', 'RUDDER', 'CHAIN CALIB.', 'TEST REPORT',
+  'TRANSMITTAL', 'RUDDER', 'CHAIN CALIB.', 'CHAIN CALIB. 2', 'TEST REPORT',
   'PROPELLER', 'LOAD LINE', 'WORK DONE', 'WORK DONE 2', 'CERT. DRYDOCK', 'LIST OF VESSEL'
 ];
 
@@ -2704,8 +2757,8 @@ async function tryDocsExport(spreadsheetId) {
   // NOTE: No 'scale' or 'fitw' parameter here. Setting either of those overrides
   // the spreadsheet's saved per-tab print settings (set by the user via File→Print
   // in the master template). Letting the export use the saved settings means each
-  // tab respects its own scale (e.g. CHAIN CALIB. uses Normal so it spans 2 pages,
-  // other tabs use Fit-to-page for one-page reports).
+  // tab respects its own scale — every tab is now configured Fit-to-page in the
+  // template (chain calib was split into two tabs so it no longer needs Normal).
   params.set('gridlines', 'false');
   params.set('printtitle', 'false');
   params.set('sheetnames', 'false');
@@ -2754,6 +2807,30 @@ async function generateAndUploadPDF(spreadsheetId, data) {
       .some(g => g.items.some(it => (data[`workDone__${it.id}`] || '').toString().trim() !== ''));
     if (!wd2HasChecked) {
       include.delete('WORK DONE 2');
+    }
+  }
+
+  // CHAIN CALIB. 2 holds shackles 6-7 only. If no data was entered for those
+  // shackles, skip the second chain page so the PDF doesn't get a blank page.
+  const chain = SCHEMA.find(s => s.id === 'chain');
+  if (chain) {
+    let chain2HasData = false;
+    outer: for (let s = 5; s < chain.shackleCount; s++) {
+      for (let l = 0; l < chain.linksPerShackle; l++) {
+        const k = `chain__s${s}_l${l}_`;
+        if (
+          (data[k + 'port_x'] || '').toString().trim() !== '' ||
+          (data[k + 'port_y'] || '').toString().trim() !== '' ||
+          (data[k + 'stbd_x'] || '').toString().trim() !== '' ||
+          (data[k + 'stbd_y'] || '').toString().trim() !== ''
+        ) {
+          chain2HasData = true;
+          break outer;
+        }
+      }
+    }
+    if (!chain2HasData) {
+      include.delete('CHAIN CALIB. 2');
     }
   }
 
