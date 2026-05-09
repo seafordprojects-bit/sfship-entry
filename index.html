@@ -173,13 +173,71 @@
     font-family: Calibri, sans-serif; font-size: 19px; font-weight: 700;
     margin-top: 1px;
   }
-  .sec-progress {
-    font-family: Calibri, sans-serif; font-size: 13px;
-    color: var(--ink-soft); padding: 3px 8px;
-    background: var(--bone); border-radius: 2px;
-    white-space: nowrap;
+  /* Field-count progress badge (e.g. "5/12") — hidden by default per user
+     preference. Most sections are intentionally only partially filled, so
+     showing a fraction was misleading. The status badge ("No Data" /
+     "In Progress" / "Complete") below carries the meaningful state.
+     The progress slot is left in the DOM so existing JS that updates
+     `data-progress-for` keeps working without errors. */
+  .sec-progress { display: none; }
+
+  /* Section status badge — sits next to .sec-progress in the summary header.
+     Three states: no-data (default gray), in-progress (amber), complete (green).
+     Status is session-only (resets on page reload / new entry). */
+  .sec-status {
+    font-family: Calibri, sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 3px 7px; border-radius: 3px; white-space: nowrap;
+    background: rgba(26,26,26,0.08); color: var(--ink-soft);
+    border: 1px solid rgba(26,26,26,0.12);
   }
-  .sec-progress.full { color: var(--green); background: rgba(45,106,79,0.1); }
+  .sec-status.in-progress {
+    background: rgba(196,121,0,0.12); color: var(--amber);
+    border-color: rgba(196,121,0,0.4);
+  }
+  .sec-status.complete {
+    background: rgba(45,106,79,0.12); color: var(--green);
+    border-color: rgba(45,106,79,0.4);
+  }
+
+  /* "Mark as Complete" button at the bottom of each section body. */
+  .sec-complete-row {
+    margin-top: 18px; padding-top: 14px;
+    border-top: 1px dashed var(--line-soft);
+    display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+  }
+  .sec-complete-btn {
+    font-family: Calibri, sans-serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 9px 18px; border-radius: 3px; cursor: pointer;
+    background: var(--green); color: var(--bone); border: 1px solid var(--green);
+    transition: opacity 0.15s ease;
+  }
+  .sec-complete-btn:hover { opacity: 0.88; }
+  .sec-complete-btn.is-complete {
+    background: var(--bone); color: var(--green);
+  }
+  .sec-complete-btn.is-complete::before { content: "✓ "; }
+
+  /* Section locked while Complete — body content is faded to indicate
+     read-only state. Click handler in JS intercepts taps on inputs and
+     shows the toast hint. The Complete button itself stays at full opacity
+     so user can always tap to unlock. */
+  .section-locked .sec-body > *:not(.sec-complete-row) { opacity: 0.65; }
+  .section-locked .sec-body input,
+  .section-locked .sec-body select,
+  .section-locked .sec-body textarea,
+  .section-locked .sec-body button:not(.sec-complete-btn),
+  .section-locked .sec-body .check-pill,
+  .section-locked .sec-body .work-checkbox,
+  .section-locked .sec-body .loc-pill {
+    cursor: not-allowed;
+    background-color: rgba(0,0,0,0.02);
+  }
+  /* Make the unlock state of the Complete button visually distinct — when the
+     section is locked we show a slight rust-tinted border to draw the eye. */
+  .section-locked .sec-complete-btn { border-color: var(--rust); color: var(--rust); }
+
   .sec-body { padding: 4px 16px 16px; border-top: 1px solid var(--line-soft); }
 
   .field { margin-bottom: 12px; }
@@ -205,6 +263,17 @@
   }
   .field input[type="date"] { font-family: Calibri, sans-serif; font-size: 17px; }
   .field input[type="number"] { font-family: Calibri, sans-serif; font-size: 17px; }
+  /* Read-only fields (e.g. Ordinal Date, Month & Year — auto-derived from
+     Date Requested). Visually distinguished so user knows they can't be
+     edited directly; the value is computed from another field. */
+  .field input[readonly], .field textarea[readonly] {
+    background: rgba(26,26,26,0.04);
+    color: var(--ink-soft);
+    cursor: not-allowed;
+  }
+  .field input[readonly]:focus, .field textarea[readonly]:focus {
+    border-color: var(--line); box-shadow: none;
+  }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .field-row .field { margin-bottom: 8px; }
   @media (max-width: 360px) { .field-row { grid-template-columns: 1fr; } }
@@ -840,13 +909,16 @@ const SCHEMA = [
       { id: 'companyAddress',    label: 'Company Address',       cell: 'B6',  type: 'textarea', placeholder: 'Pier 4, Bf Paray Building...' },
 
       // ─── Ship dimensions ───
-      { id: 'loa',               label: 'LOA',                   cell: 'B17', type: 'text', placeholder: '19.70 m' },
-      { id: 'lbp',               label: 'LBP',                   cell: 'B18', type: 'text' },
-      { id: 'breadth',           label: 'Breadth',               cell: 'B19', type: 'text', placeholder: '5.449 m' },
-      { id: 'depth',             label: 'Depth',                 cell: 'B20', type: 'text', placeholder: '2.44 m' },
-      { id: 'draft',             label: 'Draft',                 cell: 'B21', type: 'text' },
-      { id: 'grt',               label: 'GRT',                   cell: 'B22', type: 'text', placeholder: '66.37' },
-      { id: 'vesselType',        label: 'Type of Vessel',        cell: 'B23', type: 'text', placeholder: 'Tugboat' },
+      // The 5 length fields use auto "m" suffix formatting (see meterFormat
+      // handler): on blur/Enter we append " m" and round to 2 decimal places,
+      // confirming with the user before keeping 3+ decimal precision.
+      { id: 'loa',               label: 'LOA',                   cell: 'B17', type: 'text', meterFormat: true },
+      { id: 'lbp',               label: 'LBP',                   cell: 'B18', type: 'text', meterFormat: true },
+      { id: 'breadth',           label: 'Breadth',               cell: 'B19', type: 'text', meterFormat: true },
+      { id: 'depth',             label: 'Depth',                 cell: 'B20', type: 'text', meterFormat: true },
+      { id: 'draft',             label: 'Draft',                 cell: 'B21', type: 'text', meterFormat: true },
+      { id: 'grt',               label: 'GRT',                   cell: 'B22', type: 'text' },
+      { id: 'vesselType',        label: 'Type of Vessel',        cell: 'B23', type: 'text' },
 
       // ─── Transmitter info (filled last when sending report) ───
       { id: 'transmittedBy',     label: 'Transmitted By',        cell: 'B25', type: 'text', placeholder: 'Loulla K. Lauron' },
@@ -863,8 +935,13 @@ const SCHEMA = [
     desc: 'Request and drydocking timeline.',
     fields: [
       { id: 'dateRequested',     label: 'Date Requested',        cell: 'B7',  type: 'date', dateAsText: true },
-      { id: 'ordinalDate',       label: 'Ordinal Date',          cell: 'B8',  type: 'text', placeholder: '27th' },
-      { id: 'monthYear',         label: 'Month & Year',          cell: 'B9',  type: 'text', placeholder: 'March 2026' },
+      // Ordinal Date and Month & Year are auto-derived from Date Requested in
+      // autoFillScheduleFromDate() and synced to cells B8/B9. They're hidden
+      // from the entry form (hidden: true) since the user shouldn't have to
+      // think about them — but the values still flow into the spreadsheet and
+      // the resulting PDF.
+      { id: 'ordinalDate',       label: 'Ordinal Date',          cell: 'B8',  type: 'text', placeholder: '27th',          readonly: true, hidden: true },
+      { id: 'monthYear',         label: 'Month & Year',          cell: 'B9',  type: 'text', placeholder: 'March 2026',    readonly: true, hidden: true },
       { id: 'arrivalDate',       label: 'Arrival Date',          cell: 'B10', type: 'date' },
       { id: 'dockingDate',       label: 'Docking Date',          cell: 'B11', type: 'date' },
       { id: 'undockingDate',     label: 'Undocking Date',        cell: 'B12', type: 'date' },
@@ -1428,6 +1505,7 @@ function buildSection(sec) {
       <div class="sec-title">${escapeHtml(sec.title)}</div>
     </div>
     <span class="sec-progress" data-progress-for="${sec.id}">—</span>
+    <span class="sec-status" data-status-for="${sec.id}">No Data</span>
   `;
   det.appendChild(sum);
 
@@ -1455,6 +1533,21 @@ function buildSection(sec) {
     body.appendChild(buildWorkChecklist(sec));
   }
 
+  // "Mark as Complete" button — sits at the end of every section's body.
+  // Tapping toggles the status badge in the section's summary between
+  // "Complete" and the auto-derived state ("No Data" / "In Progress").
+  // Status is session-only (no persistence to draft / sheet).
+  const completeRow = document.createElement('div');
+  completeRow.className = 'sec-complete-row';
+  const completeBtn = document.createElement('button');
+  completeBtn.type = 'button';
+  completeBtn.className = 'sec-complete-btn';
+  completeBtn.dataset.completeFor = sec.id;
+  completeBtn.textContent = 'Mark as Complete';
+  completeBtn.addEventListener('click', () => toggleSectionComplete(sec.id));
+  completeRow.appendChild(completeBtn);
+  body.appendChild(completeRow);
+
   det.appendChild(body);
   return det;
 }
@@ -1480,14 +1573,32 @@ function buildFieldList(sec) {
 
     const pair = pairs.find(p => p[0] === f.id);
     if (pair && idx + 1 < sec.fields.length && sec.fields[idx+1].id === pair[1]) {
-      const row = document.createElement('div');
-      row.className = 'field-row';
-      if (pair[0] === 'secondDockingDate') {
-        row.classList.add('second-docking-row');
+      const left  = sec.fields[idx];
+      const right = sec.fields[idx+1];
+      const leftHidden  = !!left.hidden;
+      const rightHidden = !!right.hidden;
+
+      if (leftHidden && rightHidden) {
+        // Both hidden — append the bare hidden inputs directly, no row wrapper.
+        wrap.appendChild(buildField(left, sec.id));
+        wrap.appendChild(buildField(right, sec.id));
+      } else if (leftHidden || rightHidden) {
+        // One hidden, one visible — append hidden input first (no slot), then
+        // the visible field at full width (no field-row wrapper).
+        const visible = leftHidden ? right : left;
+        const hidden  = leftHidden ? left  : right;
+        wrap.appendChild(buildField(hidden, sec.id));
+        wrap.appendChild(buildField(visible, sec.id));
+      } else {
+        const row = document.createElement('div');
+        row.className = 'field-row';
+        if (pair[0] === 'secondDockingDate') {
+          row.classList.add('second-docking-row');
+        }
+        row.appendChild(buildField(left, sec.id));
+        row.appendChild(buildField(right, sec.id));
+        wrap.appendChild(row);
       }
-      row.appendChild(buildField(sec.fields[idx], sec.id));
-      row.appendChild(buildField(sec.fields[idx+1], sec.id));
-      wrap.appendChild(row);
       idx += 2;
 
       if (pair[0] === 'undockingDate' && sec.id === 'vesselSchedule') {
@@ -1517,20 +1628,49 @@ function buildField(f, sectionId) {
   const div = document.createElement('div');
   div.className = 'field';
   const fieldName = `${sectionId}__${f.id}`;
+
+  // Hidden fields: still rendered into the form (so collectFormData picks
+  // them up and they sync to the Sheet / PDF), but invisible to the user.
+  // Used for fields that are auto-derived from another field — e.g. Ordinal
+  // Date and Month & Year on Vessel Schedule, both computed from Date Requested.
+  if (f.hidden) {
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = fieldName;
+    if (f.readonly) hidden.dataset.readonly = '1';
+    // We return the bare input (no wrapper div) so it doesn't occupy a grid
+    // slot in field-row layouts.
+    return hidden;
+  }
+
   const hasRecall = AUTOCOMPLETE_FIELDS.has(fieldName);
   if (hasRecall) div.classList.add('has-recall');
 
   const optBit = f.required ? '<span class="opt">REQUIRED</span>' : '';
   const autoAttr = hasRecall ? ` data-recall="${fieldName}" autocomplete="off"` : '';
+  // f.readonly = true → render the input as readonly (used for fields that
+  // are computed from other fields, e.g. Ordinal Date / Month & Year derived
+  // from Date Requested). The user can't edit these directly; changing them
+  // requires changing the source field.
+  const readonlyAttr = f.readonly ? ' readonly' : '';
+  // f.meterFormat = true → input gets auto " m" suffix + 2-decimal-place
+  // formatting on blur/Enter, with confirm dialog if the user types 3+ decimal
+  // places. Implemented via global handlers that target inputs with data-meter.
+  // Also turns inputmode=decimal so the mobile numeric keypad shows up.
+  const meterAttrs = f.meterFormat ? ' data-meter="1" inputmode="decimal"' : '';
+  // Placeholders globally removed per user preference — clean empty boxes,
+  // no faint hint text. Field labels above the input still describe what's
+  // expected. (`f.placeholder` is left in the schema in case it's reintroduced
+  // later — we just stop emitting it onto the input.)
   let input;
   if (f.type === 'textarea') {
-    input = `<textarea name="${fieldName}" rows="2" placeholder="${escapeHtml(f.placeholder || '')}"${autoAttr}></textarea>`;
+    input = `<textarea name="${fieldName}" rows="2"${autoAttr}${readonlyAttr}></textarea>`;
   } else if (f.type === 'date') {
-    input = `<input type="date" name="${fieldName}" />`;
+    input = `<input type="date" name="${fieldName}"${readonlyAttr} />`;
   } else if (f.type === 'number') {
-    input = `<input type="number" inputmode="decimal" step="any" name="${fieldName}" placeholder="${escapeHtml(f.placeholder || '')}" />`;
+    input = `<input type="number" inputmode="decimal" step="any" name="${fieldName}"${readonlyAttr} />`;
   } else {
-    input = `<input type="text" name="${fieldName}" placeholder="${escapeHtml(f.placeholder || '')}" ${f.required?'required':''}${autoAttr} />`;
+    input = `<input type="text" name="${fieldName}" ${f.required?'required':''}${autoAttr}${readonlyAttr}${meterAttrs} />`;
   }
   const dropdownHtml = hasRecall
     ? `<div class="recall-dropdown" data-recall-dropdown="${fieldName}"></div>`
@@ -1609,8 +1749,8 @@ function buildRudderGrid(sec) {
         const apName = `${sec.id}__${block.id}_${side.keys[1]}_${pos.id}`;
         html += `<tr>
           <td class="label">${escapeHtml(pos.label)}</td>
-          <td><input type="text" inputmode="decimal" name="${bpName}" /></td>
-          <td data-ap-col><input type="text" inputmode="decimal" name="${apName}" /></td>
+          <td><input type="text" inputmode="decimal" data-decimal2="1" name="${bpName}" /></td>
+          <td data-ap-col><input type="text" inputmode="decimal" data-decimal2="1" name="${apName}" /></td>
         </tr>`;
       }
       tbl.innerHTML = html;
@@ -1747,7 +1887,7 @@ function buildClearanceGrid(sec) {
         const name = `${sec.id}__${r.id}_${c.id}`;
         const tail = c.label.split(' ').slice(-1)[0];
         const isAP = tail.toUpperCase() === 'AP';
-        html += `<td${isAP ? ' data-ap-col' : ''}><input type="text" inputmode="decimal" name="${name}" /></td>`;
+        html += `<td${isAP ? ' data-ap-col' : ''}><input type="text" inputmode="decimal" data-decimal2="1" name="${name}" /></td>`;
       }
       html += '</tr>';
     }
@@ -1910,7 +2050,7 @@ function buildWorkChecklist(sec) {
         </div>
         <div class="check-label">
           ${escapeHtml(item.label)}
-          ${item.locationCell ? `<div class="work-item-location"><input type="text" name="${sec.id}__${item.id}_loc" placeholder="Location (e.g. Port / Stbd)" /></div>` : ''}
+          ${item.locationCell ? `<div class="work-item-location"><input type="text" name="${sec.id}__${item.id}_loc" /></div>` : ''}
         </div>
       </div>`;
     }
@@ -2047,6 +2187,98 @@ function updateAllProgress() {
       el.classList.toggle('full', total > 0 && filled === total);
     }
   }
+  updateAllSectionStatuses();
+}
+
+/* =========================================================================
+   SECTION STATUS BADGES (session-only, not persisted)
+   Each section shows a small badge in its summary header with one of:
+     • "No Data"     — default; section has zero filled fields, not marked complete
+     • "In Progress" — auto: at least one field filled, but not yet marked complete
+     • "Complete"    — manual: user tapped "Mark as Complete" in this section
+   The completed set is held only in memory; it resets on page reload, on
+   loading a draft, and on starting a new entry. Doesn't affect sync at all.
+   ========================================================================= */
+const completedSections = new Set();
+
+function setSectionStatus(secId, label, cls) {
+  const badge = document.querySelector(`[data-status-for="${secId}"]`);
+  if (!badge) return;
+  badge.textContent = label;
+  badge.classList.remove('in-progress', 'complete');
+  if (cls) badge.classList.add(cls);
+}
+
+function updateAllSectionStatuses() {
+  for (const sec of SCHEMA) {
+    const isComplete = completedSections.has(sec.id);
+    if (isComplete) {
+      setSectionStatus(sec.id, 'Complete', 'complete');
+    } else {
+      const { filled } = countSectionFilled(sec);
+      if (filled > 0) {
+        setSectionStatus(sec.id, 'In Progress', 'in-progress');
+      } else {
+        setSectionStatus(sec.id, 'No Data', null);
+      }
+    }
+    // Reflect complete state on the button too
+    const btn = document.querySelector(`[data-complete-for="${sec.id}"]`);
+    if (btn) {
+      btn.classList.toggle('is-complete', isComplete);
+      btn.textContent = isComplete ? 'Marked Complete (tap to undo)' : 'Mark as Complete';
+    }
+  }
+}
+
+function toggleSectionComplete(secId) {
+  if (completedSections.has(secId)) {
+    completedSections.delete(secId);
+  } else {
+    completedSections.add(secId);
+    // Auto-collapse the section to just the title bar when marked Complete.
+    // (When the user UNDOES Complete, we leave the section in whatever state
+    // it's in — they can manually expand if needed.)
+    const det = document.querySelector(`details.section[data-section-id="${secId}"]`);
+    if (det) det.open = false;
+  }
+  updateAllSectionStatuses();
+  applySectionLocks();
+}
+
+/* Apply or remove the "locked while Complete" visual + interaction state on
+   every section. When a section is Complete, the entire body gets a CSS class
+   that fades inputs and intercepts edit attempts (see below). */
+function applySectionLocks() {
+  for (const sec of SCHEMA) {
+    const det = document.querySelector(`details.section[data-section-id="${sec.id}"]`);
+    if (!det) continue;
+    const isComplete = completedSections.has(sec.id);
+    det.classList.toggle('section-locked', isComplete);
+  }
+}
+
+/* When the section is locked (.section-locked), tapping any input/button/pill
+   inside it is intercepted: we show a one-line toast nudging the user to tap
+   "Mark as Complete" again to unlock for editing. The pointer-events trick is
+   applied via CSS — we intercept clicks at the body level using a capturing
+   listener so we can preventDefault BEFORE the form element gets the event. */
+document.addEventListener('click', (e) => {
+  const lockedBody = e.target.closest('.section-locked .sec-body');
+  if (!lockedBody) return;
+  // Allow clicks on the Complete button itself (so user can unlock) and on
+  // the section header / summary (so user can collapse/expand).
+  if (e.target.closest('.sec-complete-btn')) return;
+  if (e.target.closest('summary')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  toast('Tap "Mark as Complete" again to edit', 'info');
+}, true); // capture phase so we run before native handlers
+
+function resetSectionStatuses() {
+  completedSections.clear();
+  updateAllSectionStatuses();
+  applySectionLocks();
 }
 
 /* =========================================================================
@@ -2134,6 +2366,7 @@ function clearForm() {
     }
   }
   applySecondDockingToggle('vesselSchedule', false);
+  resetSectionStatuses();
   updateAllProgress();
 }
 
@@ -2219,7 +2452,153 @@ $('#completeBtn').addEventListener('click', () => {
 document.addEventListener('input', (e) => {
   if (e.target.matches('[name="shipsData__projectNo"], [name="shipsData__vesselName"]')) updateDraftBar();
   if (e.target.closest('#entryForm')) updateAllProgress();
+  if (e.target.matches('[name="vesselSchedule__dateRequested"]')) {
+    autoFillScheduleFromDate(e.target.value);
+  }
 });
+
+/* Meter-format fields (LOA, LBP, Breadth, Depth, Draft on Ships Data).
+   - On focus: strip the trailing " m" so the user can edit just the number.
+   - On blur: re-append " m" with the value formatted to 2 decimals minimum.
+     If the user typed 3 or more decimal places, we confirm before keeping the
+     extra precision. Cancel → round to 2 decimals; OK → keep as-typed.
+   - Empty values stay empty (no "0.00 m" forced).
+   - Non-numeric input is left untouched so users can still type "-" or notes
+     in those fields without us mangling them. */
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el || !el.matches || !el.matches('input[data-meter="1"]')) return;
+  const v = (el.value || '').trim();
+  if (/\sm$/i.test(v)) {
+    // Drop the trailing " m" (case-insensitive) so the user edits the number.
+    el.value = v.replace(/\s*m$/i, '').trim();
+  }
+});
+
+document.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (!el || !el.matches || !el.matches('input[data-meter="1"]')) return;
+  const raw = (el.value || '').trim();
+  if (!raw) return;
+  // If somehow the value still has " m" (e.g., the user pasted it back), strip
+  // before parsing.
+  const numericStr = raw.replace(/\s*m$/i, '').trim();
+  const n = parseFloat(numericStr);
+  if (!Number.isFinite(n)) return; // leave non-numeric input alone
+
+  // Count how many decimal digits the user actually typed.
+  const decMatch = /\.(\d+)$/.exec(numericStr);
+  const decCount = decMatch ? decMatch[1].length : 0;
+
+  let finalNumStr;
+  if (decCount >= 3) {
+    // Ask before keeping high-precision values; common case is a typo.
+    const ok = window.confirm(
+      `You entered ${decCount} decimal places (${numericStr}).\n\n` +
+      `OK = keep as ${numericStr} m\nCancel = round to ${n.toFixed(2)} m`
+    );
+    finalNumStr = ok ? numericStr : n.toFixed(2);
+  } else {
+    finalNumStr = n.toFixed(2);
+  }
+
+  const formatted = `${finalNumStr} m`;
+  if (raw === formatted) return;
+  el.value = formatted;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+/* Auto-format decimal fields to 2 decimal places when the user leaves the
+   field. Applies to inputs tagged with data-decimal2="1" — currently rudder
+   grid (RUDDER STOCK + PINTLE BUSHING measurements) and propeller/tailshaft
+   clearance grids. Whole numbers like "5" become "5.00", "5.5" → "5.50",
+   "5.456" → "5.46" (rounded). Empty values are left empty. Non-numeric input
+   is left untouched (so users can still type things like "-" or "N/A" without
+   them getting mangled). */
+document.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (!el || !el.matches || !el.matches('input[data-decimal2="1"]')) return;
+  const raw = (el.value || '').trim();
+  if (!raw) return;
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return;
+  const formatted = n.toFixed(2);
+  if (raw === formatted) return;
+  el.value = formatted;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+/* Enter / Return key blurs the active input, dismissing the on-screen keyboard
+   on mobile and signaling "done with this field." Applies to all single-line
+   inputs in the app — text, number, date, etc. Textareas are intentionally
+   excluded so multi-line notes still allow newlines on Enter. The `form` tag
+   already has autocomplete="off" but we also call preventDefault to stop any
+   accidental form submission from a stray Enter press. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const t = e.target;
+  if (!t || !t.matches) return;
+  if (t.matches('textarea')) return; // allow newlines in multi-line fields
+  if (!t.matches('input')) return;
+  e.preventDefault();
+  if (typeof t.blur === 'function') t.blur();
+});
+
+/* When the user picks a Date Requested, auto-populate the two derived fields:
+   - "Ordinal Date" → "2nd", "27th", "1st", etc.
+   - "Month & Year" → "January 2026", "March 2026", etc.
+   We only auto-fill if the target field is empty OR was previously auto-filled
+   (we tag it via dataset so manual edits don't get overwritten on next change). */
+function autoFillScheduleFromDate(isoDate) {
+  if (!isoDate) return;
+  // The date input gives us YYYY-MM-DD. Parse via UTC components to avoid the
+  // local-timezone shift that would turn 2026-01-02 into Jan 1 in negative-UTC
+  // zones. We only need day/month/year as numbers — no time-of-day involved.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
+  if (!m) return;
+  const year = parseInt(m[1], 10);
+  const monthIdx = parseInt(m[2], 10) - 1; // 0-11
+  const day = parseInt(m[3], 10);
+
+  const MONTHS = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+  ];
+  const monthName = MONTHS[monthIdx];
+  if (!monthName) return;
+
+  const ordinalStr = day + ordinalSuffix(day);
+  const monthYearStr = `${monthName} ${year}`;
+
+  fillIfEmptyOrAuto('vesselSchedule__ordinalDate', ordinalStr);
+  fillIfEmptyOrAuto('vesselSchedule__monthYear', monthYearStr);
+}
+
+function ordinalSuffix(n) {
+  // Handles 11th/12th/13th edge case and the standard st/nd/rd/th rule.
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return 'th';
+  switch (n % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
+function fillIfEmptyOrAuto(fieldName, value) {
+  const el = document.querySelector(`[name="${fieldName}"]`);
+  if (!el) return;
+  // Ordinal Date and Month & Year are readonly inputs (locked in the schema),
+  // so no manual user typing can ever exist here — we always overwrite when
+  // Date Requested changes. The dataset.autofilled tag is preserved purely as
+  // a marker for any future logic that might need to know "this came from
+  // auto-fill, not from a draft load".
+  el.value = value;
+  el.dataset.autofilled = '1';
+  // Notify the rest of the app (progress, status badges, draft autosave)
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
 document.addEventListener('click', (e) => {
   const pill = e.target.closest('.loc-pill');
@@ -3429,7 +3808,15 @@ document.addEventListener('focusin', (e) => {
 
 document.addEventListener('input', (e) => {
   const input = e.target.closest('[data-recall]');
-  if (input) _renderRecallDropdown(input);
+  // Skip re-render if this input event was synthesized by a recall selection
+  // (we set a flag on the input so the just-fired event doesn't re-open the
+  // dropdown we just closed).
+  if (input && !input._recallJustPicked) {
+    _renderRecallDropdown(input);
+  }
+  if (input && input._recallJustPicked) {
+    input._recallJustPicked = false;
+  }
 });
 
 document.addEventListener('mousedown', (e) => {
@@ -3447,10 +3834,12 @@ document.addEventListener('mousedown', (e) => {
     e.preventDefault();
     const text = item.querySelector('.recall-item-text');
     if (text) {
+      _recallActiveInput._recallJustPicked = true;
       _recallActiveInput.value = text.textContent;
       _recallActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
     _closeAllRecalls();
+    if (_recallActiveInput) _recallActiveInput.blur();
   }
 });
 document.addEventListener('touchstart', (e) => {
@@ -3468,10 +3857,12 @@ document.addEventListener('touchstart', (e) => {
     e.preventDefault();
     const text = item.querySelector('.recall-item-text');
     if (text) {
+      _recallActiveInput._recallJustPicked = true;
       _recallActiveInput.value = text.textContent;
       _recallActiveInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
     _closeAllRecalls();
+    if (_recallActiveInput) _recallActiveInput.blur();
   }
 }, { passive: false });
 
