@@ -2619,18 +2619,56 @@ async function syncEntry(entry) {
     console.warn('PDF generation failed:', pdfErr);
   }
 
-  // Per-tab PDFs — clean per-section reports without orphan signature pages.
-  // Each tab is exported separately with explicit print range so it fits perfectly.
-  // Files are uploaded to the same vessel folder with sortable numbered names.
-  // This is best-effort — if it fails entirely, the combined PDF is still saved above.
+  // Per-tab PDFs via Apps Script. The browser-side per-tab export approach didn't
+  // work because Google's docs.google.com export endpoint rejects URL patterns
+  // with gid + range params from a browser fetch (returns HTML sign-in page).
+  // Apps Script runs server-side with a different OAuth flow that works reliably.
+  // This is best-effort: if the Apps Script call fails, the combined PDF is still
+  // available, and the user can fall back to manual download.
   let perTabPdfs = [];
   try {
-    perTabPdfs = await generatePerTabPDFs(newFile.id, data, targetFolderId);
-  } catch (perTabErr) {
-    console.warn('Per-tab PDF generation failed:', perTabErr);
+    perTabPdfs = await callAppsScriptForPerTabPDFs(newFile.id, data);
+  } catch (asErr) {
+    console.warn('Apps Script per-tab PDF call failed:', asErr);
   }
 
   return { fileId: newFile.id, fileName, pdfFileId, pdfFileName, perTabPdfs };
+}
+
+// URL of the deployed Apps Script Web App that generates per-tab PDFs server-side.
+// Set up via: https://script.google.com → New project → paste AppsScript_Code.gs
+// → Deploy as Web App → "Anyone" access → copy the URL here.
+const APPS_SCRIPT_PER_TAB_PDF_URL =
+  'https://script.google.com/macros/s/AKfycby64Ap7VkdU3LtuzQetIoi2dgKoUYHvi2lqlDtevL3MYo_C-SK0g75Pr8K1l5BmLqw/exec';
+
+// Call the Apps Script Web App to generate per-tab PDFs for the synced spreadsheet.
+// Returns array of { fileId, fileName, tabName } for successfully created PDFs,
+// or empty array if anything fails.
+async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
+  if (!APPS_SCRIPT_PER_TAB_PDF_URL || APPS_SCRIPT_PER_TAB_PDF_URL.includes('PASTE_URL_HERE')) {
+    return []; // Apps Script not configured — silently skip.
+  }
+  const projectNo = (data['shipsData__projectNo'] || '').trim();
+  const vesselName = (data['shipsData__vesselName'] || '').trim();
+
+  // Note: we don't send the user's OAuth token. Apps Script runs as the project owner
+  // and has its own access to the user's Drive (granted during the first-run permission
+  // popup when the script was deployed). The Web App URL is "Anyone" access — anyone
+  // who has the URL can trigger PDF generation, so the URL is the de facto secret.
+  const resp = await fetch(APPS_SCRIPT_PER_TAB_PDF_URL, {
+    method: 'POST',
+    // 'text/plain' avoids a CORS preflight (Apps Script doesn't handle OPTIONS).
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ spreadsheetId, projectNo, vesselName })
+  });
+  if (!resp.ok) {
+    throw new Error(`Apps Script HTTP ${resp.status}`);
+  }
+  const result = await resp.json();
+  if (!result.ok) {
+    throw new Error(result.error || 'Apps Script returned ok=false');
+  }
+  return result.uploaded || [];
 }
 
 const PDF_TABS = [
@@ -2638,153 +2676,6 @@ const PDF_TABS = [
   'PROPELLER', 'LOAD LINE', 'WORK DONE', 'WORK DONE 2', 'CERT. DRYDOCK', 'LIST OF VESSEL'
 ];
 
-// Generate one PDF per tab, using EXPLICIT print range (r1/c1/r2/c2 + gid) so each
-// tab fits perfectly on its own pages without orphan signature pages. The combined
-// PDF (generateAndUploadPDF) often has orphan pages because Google's whole-spreadsheet
-// export uses one global scale that doesn't fit each tab's content properly.
-//
-// Files are uploaded with sortable numbered names: "26-21-004 01 TRANSMITTAL.pdf",
-// "26-21-004 02 RUDDER.pdf", etc., into the same vessel folder.
-//
-// Returns array of { fileId, fileName, tabName } for each successfully uploaded PDF.
-async function generatePerTabPDFs(spreadsheetId, data, targetFolderId) {
-  // Step 1: Get every tab's metadata (sheetId, title, rowCount, columnCount) so we
-  // know what range to print for each.
-  const meta = await gFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title,gridProperties))`
-  );
-  const sheetsByTitle = {};
-  for (const s of meta.sheets || []) {
-    sheetsByTitle[s.properties.title] = s.properties;
-  }
-
-  const projectNo = (data['shipsData__projectNo'] || '').trim();
-  const vesselName = (data['shipsData__vesselName'] || 'VESSEL').trim();
-  const cleanVessel = vesselName.replace(/[\\\/:*?"<>|]/g, '');
-
-  // Determine which tabs to export — same logic as the combined PDF: skip WORK DONE 2
-  // when no items on that page are checked.
-  const include = new Set(PDF_TABS);
-  const wd = SCHEMA.find(s => s.id === 'workDone');
-  if (wd) {
-    const wd2HasChecked = wd.groups
-      .filter(g => (g.sheet || wd.sheet) === 'WORK DONE 2')
-      .some(g => g.items.some(it => (data[`workDone__${it.id}`] || '').toString().trim() !== ''));
-    if (!wd2HasChecked) include.delete('WORK DONE 2');
-  }
-
-  const uploaded = [];
-  let tabIndex = 0;
-  for (const tabName of PDF_TABS) {
-    if (!include.has(tabName)) continue;
-    tabIndex += 1;
-
-    const props = sheetsByTitle[tabName];
-    if (!props) {
-      console.warn(`Per-tab PDF: tab "${tabName}" not found in spreadsheet, skipping`);
-      continue;
-    }
-
-    const gid = props.sheetId;
-    const grid = props.gridProperties || {};
-    // Grid dimensions reflect the cleaned-up template (rows/cols actually present).
-    // We use these as the explicit print range so the export box matches content exactly.
-    const r2 = grid.rowCount || 50;
-    const c2 = grid.columnCount || 26;
-
-    try {
-      const pdfBlob = await exportSingleTabPdf(spreadsheetId, gid, r2, c2);
-      if (!(await isPdfBlob(pdfBlob))) {
-        console.warn(`Per-tab PDF for "${tabName}": got non-PDF response, skipping`);
-        continue;
-      }
-
-      // Sortable filename. Pad index with leading zero for proper alphabetical sort.
-      const idxPad = String(tabIndex).padStart(2, '0');
-      const cleanTab = tabName.replace(/[\\\/:*?"<>|]/g, '').replace(/\.$/, ''); // strip trailing dot from "CHAIN CALIB."
-      const fileName = `${projectNo} ${idxPad} ${cleanTab}.pdf`.trim();
-
-      const result = await uploadPdfBlobToDrive(pdfBlob, fileName, targetFolderId);
-      uploaded.push({ fileId: result.fileId, fileName, tabName });
-    } catch (err) {
-      console.warn(`Per-tab PDF for "${tabName}" failed:`, err);
-      // Continue with the next tab — don't let one failure block the rest.
-    }
-  }
-  return uploaded;
-}
-
-// Export ONE tab as PDF, with explicit print range. Returns a Blob.
-// gid = sheet's numeric sheetId (from spreadsheet metadata)
-// r2/c2 = bottom-right of print range (1-indexed). r1/c1 default to 1.
-async function exportSingleTabPdf(spreadsheetId, gid, r2, c2) {
-  const params = new URLSearchParams();
-  params.set('format', 'pdf');
-  params.set('size', 'A4');
-  params.set('portrait', 'true');
-  params.set('fitw', 'true');         // fit content to page width
-  params.set('gridlines', 'false');
-  params.set('printtitle', 'false');
-  params.set('sheetnames', 'false');
-  params.set('pagenumbers', 'false');
-  params.set('fzr', 'true');
-  params.set('attachment', 'false');
-  params.set('gid', String(gid));
-  // Explicit print range — these are the magic params that constrain the export
-  // box to exactly the cells we care about (vs. defaulting to the entire grid).
-  params.set('r1', '0');              // 0-indexed: row 1
-  params.set('c1', '0');              // 0-indexed: col 1
-  params.set('r2', String(r2));       // exclusive upper bound = total row count
-  params.set('c2', String(c2));       // exclusive upper bound = total col count
-  // Token as URL param (instead of Authorization header). Some Google export
-  // endpoints reject Bearer headers when gid/range params are present, returning
-  // an HTML sign-in page. Embedding the token in the URL bypasses that.
-  params.set('access_token', accessToken);
-
-  const exportUrl =
-    `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?${params.toString()}`;
-  const pdfResp = await fetch(exportUrl);
-  if (!pdfResp.ok) {
-    const txt = await pdfResp.text();
-    throw new Error(`Single-tab PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
-  }
-  return await pdfResp.blob();
-}
-
-// Upload a PDF blob to Drive. Returns { fileId, fileName }.
-async function uploadPdfBlobToDrive(pdfBlob, fileName, targetFolderId) {
-  const metadata = { name: fileName, mimeType: 'application/pdf' };
-  if (targetFolderId) metadata.parents = [targetFolderId];
-
-  const boundary = 'sfship_pdf_' + Math.random().toString(36).slice(2);
-  const metaPart =
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify(metadata) + '\r\n';
-  const dataPartHeader = `--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`;
-  const closing = `\r\n--${boundary}--`;
-
-  const body = new Blob([metaPart, dataPartHeader, pdfBlob, closing], {
-    type: `multipart/related; boundary=${boundary}`
-  });
-
-  const uploadResp = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + accessToken,
-        'Content-Type': `multipart/related; boundary=${boundary}`
-      },
-      body
-    }
-  );
-  if (!uploadResp.ok) {
-    const txt = await uploadResp.text();
-    throw new Error(`PDF upload HTTP ${uploadResp.status}: ${txt.slice(0, 200)}`);
-  }
-  const uploaded = await uploadResp.json();
-  return { fileId: uploaded.id, fileName };
-}
 
 // Check whether a blob's first bytes are "%PDF" — the magic header for valid PDF files.
 // Returns false for HTML, JSON, or any non-PDF response (which means the export "failed"
