@@ -2587,7 +2587,11 @@ async function syncEntry(entry) {
       {
         method: 'POST',
         body: JSON.stringify({
-          valueInputOption: 'USER_ENTERED',
+          // RAW (not USER_ENTERED) so Sheets doesn't auto-parse text as dates/numbers
+          // or auto-resize row heights. With USER_ENTERED, the synced copy was rendering
+          // taller than the master template (synced RUDDER = 2 pages, template = 1 page).
+          // RAW preserves the template's exact row heights and pagination.
+          valueInputOption: 'RAW',
           data: valueRanges.slice(i, i + CHUNK)
         })
       }
@@ -2890,7 +2894,7 @@ async function renumberWorkDoneCategories(data, spreadsheetId) {
     {
       method: 'POST',
       body: JSON.stringify({
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         data: valueWrites
       })
     }
