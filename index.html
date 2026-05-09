@@ -2721,6 +2721,13 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
     if (Array.isArray(result.uploaded)) allUploaded.push(...result.uploaded);
     if (Array.isArray(result.errors))   allErrors.push(...result.errors);
     if (Array.isArray(result.skipped))  allSkipped.push(...result.skipped);
+
+    // Pause between batches to give Google's per-user export rate limit time to
+    // reset. Without this, a batch that hits the limit at the end will leak into
+    // the next batch's first export.
+    if (start + BATCH_SIZE < actualTotal) {
+      await new Promise(r => setTimeout(r, 3000));
+    }
   }
 
   if (allErrors.length > 0) {
