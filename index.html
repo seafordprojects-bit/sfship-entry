@@ -2780,23 +2780,30 @@ async function cloudDraftPush(entry) {
     );
     return upd;
   } else {
-    // Create new with multipart upload (metadata + body).
+    // Two-step create: (1) POST metadata-only to create the file in the
+    // folder, (2) PATCH upload the JSON content. Avoids multipart upload
+    // fragility — multipart/related upload was returning 404 on the parent
+    // folder reference for reasons we couldn't pin down (possibly Drive's
+    // multipart parser rejecting our boundary or charset declaration).
+    // The two-step approach uses pure JSON for both calls.
     const metadata = { name, parents: [folderId], mimeType: 'application/json' };
-    const boundary = '-------sfship_boundary_' + Date.now();
-    const multipart =
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-      JSON.stringify(metadata) + `\r\n` +
-      `--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-      body + `\r\n--${boundary}--`;
     const created = await gFetch(
-      `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
+      `https://www.googleapis.com/drive/v3/files?fields=id,name`,
       {
         method: 'POST',
-        headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-        body: multipart
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadata)
       }
     );
-    if (created && created.id) _cloudFileIdByEntryId[entry.id] = created.id;
+    if (!created || !created.id) {
+      throw new Error('Cloud draft create failed: no file ID returned');
+    }
+    // Now upload the content.
+    await gFetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+    );
+    _cloudFileIdByEntryId[entry.id] = created.id;
     return created;
   }
 }
@@ -3119,22 +3126,24 @@ async function _cloudWritePayload(entry, payload) {
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
     );
   }
+  // Two-step create: metadata first, then content. See cloudDraftPush for why.
   const metadata = { name, parents: [folderId], mimeType: 'application/json' };
-  const boundary = '-------sfship_boundary_' + Date.now();
-  const multipart =
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify(metadata) + `\r\n` +
-    `--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-    body + `\r\n--${boundary}--`;
   const created = await gFetch(
-    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
+    `https://www.googleapis.com/drive/v3/files?fields=id,name`,
     {
       method: 'POST',
-      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-      body: multipart
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(metadata)
     }
   );
-  if (created && created.id) _cloudFileIdByEntryId[entry.id] = created.id;
+  if (!created || !created.id) {
+    throw new Error('Cloud draft create failed: no file ID returned');
+  }
+  await gFetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media`,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+  );
+  _cloudFileIdByEntryId[entry.id] = created.id;
   return created;
 }
 
