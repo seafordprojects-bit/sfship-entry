@@ -2670,7 +2670,19 @@ let _cloudPushTimer = null;
 let _cloudFileIdByEntryId = {}; // local cache: our entryId → driveFileId, populated on list/push
 
 function cloudFolderId() {
-  return (config && config.cloudDraftsFolderId) ? config.cloudDraftsFolderId.trim() : '';
+  if (!config || !config.cloudDraftsFolderId) return '';
+  // Sanitize the folder ID: strip whitespace, trailing periods, slashes,
+  // commas, and any other punctuation that commonly sneaks in via copy-paste
+  // (e.g. selecting "https://drive.google.com/drive/folders/ABC." from a URL
+  // would include the trailing period). Drive folder IDs are alphanumeric
+  // plus underscores and hyphens only.
+  let id = config.cloudDraftsFolderId.trim();
+  // If the user pasted a full URL, extract just the folder ID portion.
+  const urlMatch = /\/folders\/([A-Za-z0-9_-]+)/.exec(id);
+  if (urlMatch) id = urlMatch[1];
+  // Strip anything past the first non-allowed char (period, slash, ?, etc.).
+  const cleanMatch = /^[A-Za-z0-9_-]+/.exec(id);
+  return cleanMatch ? cleanMatch[0] : '';
 }
 
 function cloudDraftsEnabled() {
@@ -3492,7 +3504,10 @@ async function gFetch(url, opts={}) {
   }
   if (!resp.ok) {
     const txt = await resp.text();
-    throw new Error(`HTTP ${resp.status}: ${txt.slice(0, 200)}`);
+    // Include the URL path (not query) in error so we can see WHICH endpoint failed.
+    let urlPath = url;
+    try { urlPath = new URL(url).pathname; } catch (_) {}
+    throw new Error(`HTTP ${resp.status} ${urlPath}: ${txt.slice(0, 200)}`);
   }
   return resp.json();
 }
@@ -4483,6 +4498,17 @@ $('#saveCfgBtn').addEventListener('click', () => {
     cloudDraftsFolderId: $('#cfgCloudDraftsFolderId').value.trim()
   };
   localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  // Clear cloud-draft caches so a folder ID change starts fresh — without
+  // this, stale file ID cache entries from the OLD folder cause "File not
+  // found" 404s when the app tries to update files that don't exist in the
+  // new folder.
+  if (typeof _cloudFileIdByEntryId !== 'undefined') {
+    for (const k of Object.keys(_cloudFileIdByEntryId)) delete _cloudFileIdByEntryId[k];
+  }
+  if (typeof window !== 'undefined') {
+    delete window._cloudPushErrorShown;
+    delete window._tempCloudEntryId;
+  }
   toast('Configuration saved', 'success');
   initGoogle(); renderAuth();
 });
