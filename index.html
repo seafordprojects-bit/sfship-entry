@@ -2845,6 +2845,14 @@ function scheduleCloudDraftPush() {
         elIcon.textContent = '☁ push failed';
         elIcon.style.color = 'var(--rust)';
       }
+      // Surface the actual error so we can debug. Only the FIRST push failure
+      // in a session triggers the alert (subsequent failures just update the
+      // status indicator) — avoids spamming the user.
+      if (!window._cloudPushErrorShown) {
+        window._cloudPushErrorShown = true;
+        const msg = (err && err.message) ? err.message : String(err);
+        setTimeout(() => alert('Cloud draft push failed:\n\n' + msg.substring(0, 400)), 100);
+      }
     }
   }, CLOUD_DRAFT_PUSH_DEBOUNCE_MS);
 }
