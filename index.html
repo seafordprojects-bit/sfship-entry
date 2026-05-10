@@ -2774,12 +2774,25 @@ async function cloudDraftPush(entry) {
 
   if (existingFileId) {
     // Update existing.
-    const upd = await gFetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
-    );
-    return upd;
-  } else {
+    try {
+      const upd = await gFetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+      );
+      return upd;
+    } catch (err) {
+      // If the cached file ID is stale (file was deleted, or cache is from a
+      // previous broken folder ID), Drive returns 404. Drop the cache entry and
+      // fall through to create a fresh file.
+      if (String(err).indexOf('HTTP 404') >= 0) {
+        delete _cloudFileIdByEntryId[entry.id];
+        existingFileId = null;
+      } else {
+        throw err;
+      }
+    }
+  }
+  if (!existingFileId) {
     // Two-step create: (1) POST metadata-only to create the file in the
     // folder, (2) PATCH upload the JSON content. Avoids multipart upload
     // fragility — multipart/related upload was returning 404 on the parent
