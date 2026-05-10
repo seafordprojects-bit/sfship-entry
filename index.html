@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
-<title>SF Ship · Vessel Data Entry</title>
+<title>SF Ship · Vessel Data Entry (v3.35)</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -128,12 +128,20 @@
   .draft-bar.editing {
     background: rgba(10,37,64,0.06); border-color: rgba(10,37,64,0.2);
   }
+  .draft-bar.cloud-edit {
+    background: rgba(45,106,79,0.08); border-color: rgba(45,106,79,0.35);
+  }
+  .draft-bar.cloud-readonly {
+    background: rgba(164,22,26,0.08); border-color: rgba(164,22,26,0.35);
+  }
   .draft-bar-label {
     font-family: Calibri, sans-serif; font-size: 13px;
     letter-spacing: 1.2px; text-transform: uppercase;
     color: var(--amber);
   }
   .draft-bar.editing .draft-bar-label { color: var(--navy); }
+  .draft-bar.cloud-edit .draft-bar-label { color: var(--green); }
+  .draft-bar.cloud-readonly .draft-bar-label { color: var(--red); }
   .draft-bar-name {
     font-family: Calibri, sans-serif; font-size: 17px; font-weight: 600;
   }
@@ -173,17 +181,8 @@
     font-family: Calibri, sans-serif; font-size: 19px; font-weight: 700;
     margin-top: 1px;
   }
-  /* Field-count progress badge (e.g. "5/12") — hidden by default per user
-     preference. Most sections are intentionally only partially filled, so
-     showing a fraction was misleading. The status badge ("No Data" /
-     "In Progress" / "Complete") below carries the meaningful state.
-     The progress slot is left in the DOM so existing JS that updates
-     `data-progress-for` keeps working without errors. */
   .sec-progress { display: none; }
 
-  /* Section status badge — sits next to .sec-progress in the summary header.
-     Three states: no-data (default gray), in-progress (amber), complete (green).
-     Status is session-only (resets on page reload / new entry). */
   .sec-status {
     font-family: Calibri, sans-serif; font-size: 11px; font-weight: 700;
     letter-spacing: 0.5px; text-transform: uppercase;
@@ -200,7 +199,6 @@
     border-color: rgba(45,106,79,0.4);
   }
 
-  /* "Mark as Complete" button at the bottom of each section body. */
   .sec-complete-row {
     margin-top: 18px; padding-top: 14px;
     border-top: 1px dashed var(--line-soft);
@@ -219,10 +217,6 @@
   }
   .sec-complete-btn.is-complete::before { content: "✓ "; }
 
-  /* Section locked while Complete — body content is faded to indicate
-     read-only state. Click handler in JS intercepts taps on inputs and
-     shows the toast hint. The Complete button itself stays at full opacity
-     so user can always tap to unlock. */
   .section-locked .sec-body > *:not(.sec-complete-row) { opacity: 0.65; }
   .section-locked .sec-body input,
   .section-locked .sec-body select,
@@ -234,8 +228,6 @@
     cursor: not-allowed;
     background-color: rgba(0,0,0,0.02);
   }
-  /* Make the unlock state of the Complete button visually distinct — when the
-     section is locked we show a slight rust-tinted border to draw the eye. */
   .section-locked .sec-complete-btn { border-color: var(--rust); color: var(--rust); }
 
   .sec-body { padding: 4px 16px 16px; border-top: 1px solid var(--line-soft); }
@@ -263,9 +255,6 @@
   }
   .field input[type="date"] { font-family: Calibri, sans-serif; font-size: 17px; }
   .field input[type="number"] { font-family: Calibri, sans-serif; font-size: 17px; }
-  /* Read-only fields (e.g. Ordinal Date, Month & Year — auto-derived from
-     Date Requested). Visually distinguished so user knows they can't be
-     edited directly; the value is computed from another field. */
   .field input[readonly], .field textarea[readonly] {
     background: rgba(26,26,26,0.04);
     color: var(--ink-soft);
@@ -278,7 +267,6 @@
   .field-row .field { margin-bottom: 8px; }
   @media (max-width: 360px) { .field-row { grid-template-columns: 1fr; } }
 
-  /* Autocomplete dropdown (for company name, address, etc.) */
   .field.has-recall { position: relative; }
   .recall-dropdown {
     position: absolute;
@@ -338,7 +326,6 @@
     font-style: italic;
   }
 
-  /* Work item checkbox (visual checkbox for done/not done) */
   .work-item { align-items: center; }
   .work-checkbox {
     width: 28px; height: 28px;
@@ -366,7 +353,6 @@
   }
   .work-checkbox:hover { border-color: var(--navy); }
 
-  /* Second docking toggle (Ships Data — appears only when checked) */
   .second-docking-toggle {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 10px; margin: 8px 0;
@@ -393,11 +379,9 @@
     font-family: Calibri, sans-serif; font-size: 14px;
     font-weight: 600; color: var(--ink);
   }
-  /* The 2nd docking row stays hidden until the toggle above is checked */
   .second-docking-row { display: none; }
   .second-docking-row.show { display: grid; }
 
-  /* Per-side pullout checkboxes (Rudder Stock / Pintle / Propeller — when checked, AP becomes visible) */
   .pullout-block {
     margin-bottom: 10px;
     padding: 8px 10px;
@@ -434,14 +418,12 @@
     font-family: Calibri, sans-serif; font-size: 14px;
     font-weight: 600; color: var(--ink);
   }
-  /* When a side is NOT pulled (default — pullout-side-row not checked), hide AP cells for that side */
   .grid-block.not-pulled-center [data-loc-group="center"] [data-ap-col],
   .grid-block.not-pulled-port   [data-loc-group="port"]   [data-ap-col],
   .grid-block.not-pulled-stbd   [data-loc-group="stbd"]   [data-ap-col] {
     display: none;
   }
 
-  /* Location toggle pills */
   .loc-toggle {
     display: flex; gap: 6px; flex-wrap: wrap;
     margin-bottom: 14px; padding: 10px 12px;
@@ -478,7 +460,6 @@
     box-shadow: inset 0 0 0 2px var(--navy);
   }
 
-  /* Measurement grid */
   .grid-block { margin-bottom: 16px; }
   .grid-title {
     font-family: Calibri, sans-serif; font-size: 13px;
@@ -521,7 +502,6 @@
     box-shadow: inset 0 0 0 2px var(--navy);
   }
 
-  /* Chain calibration shackle block */
   .shackle {
     border: 1px solid var(--line); margin-bottom: 8px;
     background: #fff;
@@ -565,7 +545,6 @@
     box-shadow: 0 0 0 2px rgba(10,37,64,0.08);
   }
 
-  /* Checklist (Test Report, Work Done) */
   .checklist-item {
     display: flex; align-items: flex-start; gap: 10px;
     padding: 8px 10px; border-bottom: 1px solid var(--line-soft);
@@ -610,7 +589,6 @@
     font-family: Calibri, sans-serif;
   }
 
-  /* Sticky action bar */
   .actions {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: linear-gradient(to top, var(--paper) 70%, rgba(250,247,241,0.95) 100%);
@@ -650,7 +628,6 @@
   }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* List items (drafts and queue) */
   .list-empty {
     text-align: center; padding: 50px 20px; color: var(--ink-soft);
   }
@@ -725,7 +702,6 @@
     background: rgba(164,22,26,0.06); border-radius: 2px;
   }
 
-  /* Settings */
   .setting-group {
     background: #fff; border: 1px solid var(--line);
     padding: 14px; margin-bottom: 12px;
@@ -736,7 +712,6 @@
   }
   .setting-group p { font-size: 15px; color: var(--ink-soft); margin-bottom: 10px; }
 
-  /* Toasts */
   .toast-wrap {
     position: fixed; bottom: 90px; left: 0; right: 0;
     display: flex; flex-direction: column; align-items: center;
@@ -767,6 +742,84 @@
     background: rgba(181,74,31,0.04);
     line-height: 1.5;
   }
+
+  /* ════════ Cloud Drafts Modal (v3.35) ════════ */
+  #cloudModal {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(10,37,64,0.55);
+    padding: 20px; overflow-y: auto;
+  }
+  #cloudModal .modal-inner {
+    background: var(--paper); max-width: 560px; margin: 0 auto;
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+  }
+  #cloudModal .modal-head {
+    background: var(--navy); color: var(--bone);
+    padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  #cloudModal .modal-head .modal-title {
+    font-size: 18px; font-weight: 600;
+  }
+  #cloudModal .modal-head .modal-sub {
+    font-size: 12px; opacity: 0.75; letter-spacing: 1px; text-transform: uppercase;
+  }
+  #cloudModal .modal-close {
+    background: none; border: none; color: var(--bone);
+    font-size: 28px; cursor: pointer; line-height: 1; padding: 0 4px;
+  }
+  #cloudModalBody {
+    padding: 16px; max-height: 60vh; overflow-y: auto;
+  }
+  .cloud-item {
+    background: #fff; border: 1px solid var(--line);
+    padding: 12px 14px; margin-bottom: 8px;
+    border-left: 3px solid var(--amber);
+  }
+  .cloud-item.locked { border-left-color: var(--red); }
+  .cloud-item-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 3px;
+  }
+  .cloud-item-proj {
+    font-family: Calibri, sans-serif; font-size: 14px;
+    color: var(--ink-soft); letter-spacing: 1px;
+  }
+  .cloud-item-vessel {
+    font-family: Calibri, sans-serif; font-size: 18px;
+    font-weight: 600;
+  }
+  .cloud-item-meta {
+    font-size: 14px; color: var(--ink-soft); margin-top: 2px;
+  }
+  .cloud-item-lock {
+    font-size: 13px; color: var(--red); margin-top: 3px;
+  }
+  .cloud-item-actions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--line-soft);
+  }
+  .cloud-item-actions button {
+    font-family: Calibri, sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+    padding: 6px 10px; cursor: pointer; border-radius: 2px;
+    background: none; border: 1px solid var(--line); color: var(--ink-soft);
+  }
+  .cloud-item-actions button.primary {
+    background: var(--navy); color: var(--bone); border-color: var(--navy);
+  }
+  .cloud-item-actions button.danger {
+    color: var(--red); border-color: rgba(164,22,26,0.3);
+  }
+  .cloud-badge {
+    font-family: Calibri, sans-serif; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 2px;
+  }
+  .cloud-badge.locked { background: rgba(164,22,26,0.12); color: var(--red); }
+  .cloud-badge.mine { background: rgba(45,106,79,0.12); color: var(--green); }
 </style>
 </head>
 <body>
@@ -777,7 +830,7 @@
       <div class="logo-mark">SF</div>
       <div class="logo-text">
         Vessel Data Entry
-        <small>SF SHIP BUILDING & REPAIR</small>
+        <small>SF SHIP BUILDING & REPAIR · v3.35</small>
       </div>
     </div>
     <div class="status-pill" id="netStatus">
@@ -823,6 +876,9 @@
     <div class="helper">
       Drafts are works-in-progress. They <strong>won't upload</strong> until you mark them complete. Tap a draft to keep editing it.
     </div>
+    <div style="display:flex; gap:8px; margin-bottom:14px">
+      <button class="btn btn-primary" id="pullCloudBtn">☁️ Pull from Cloud</button>
+    </div>
     <div id="draftsList"></div>
   </section>
 
@@ -861,6 +917,7 @@
     <div class="setting-group">
       <h4>About this app</h4>
       <p>Built for offline vessel data entry across Ships Data, Rudder, Tailshaft, Chain Calibration, Test Report, Propeller, and Work Done. Saves locally on this phone, syncs to your Drive when online.</p>
+      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.35 — cloud drafts for two-device collaboration</p>
     </div>
 
     <div class="setting-group">
@@ -880,19 +937,32 @@
 
 <div class="actions" id="actionsBar">
   <button type="button" class="btn btn-secondary" id="saveDraftBtn">Save Draft</button>
+  <button type="button" class="btn btn-secondary" id="pushCloudBtn" title="Push to Cloud">☁️ Push</button>
   <button type="button" class="btn btn-success" id="completeBtn">Mark Complete</button>
 </div>
 
 <div class="toast-wrap" id="toastWrap"></div>
 
+<!-- ════════ Cloud Drafts Modal (v3.35) ════════ -->
+<div id="cloudModal">
+  <div class="modal-inner">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">☁️ Cloud Drafts</div>
+        <div class="modal-sub">Shared between devices</div>
+      </div>
+      <button class="modal-close" id="cloudModalClose">×</button>
+    </div>
+    <div id="cloudModalBody">
+      <div style="text-align:center; color:var(--ink-soft); padding:30px 10px;">Loading...</div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    FORM SCHEMA — defines every section, field, and target cell in template
    ========================================================================= */
-
-// Each section: which sheet/tab it writes to, and an array of fields with cell refs.
-// Cell refs use the openpyxl A1 notation from the template inspection.
-// Fields can be: text, date, number, textarea, check (true/false), or special (chain).
 
 const SCHEMA = [
   {
@@ -902,16 +972,10 @@ const SCHEMA = [
     sheet: 'SHIPS DATA',
     desc: 'Project header — flows to every other tab automatically.',
     fields: [
-      // ─── Company info (top) ───
       { id: 'projectNo',         label: 'Project No.',           cell: 'B3',  type: 'text', required: true, placeholder: '26-21-004' },
       { id: 'vesselName',        label: 'Name of Vessel',        cell: 'B4',  type: 'text', required: true, placeholder: 'MTUG "DON PILO"' },
       { id: 'companyName',       label: 'Company Name',          cell: 'B5',  type: 'text', placeholder: 'Seaford Shipping Lines, Inc.' },
       { id: 'companyAddress',    label: 'Company Address',       cell: 'B6',  type: 'textarea', placeholder: 'Pier 4, Bf Paray Building...' },
-
-      // ─── Ship dimensions ───
-      // The 5 length fields use auto "m" suffix formatting (see meterFormat
-      // handler): on blur/Enter we append " m" and round to 2 decimal places,
-      // confirming with the user before keeping 3+ decimal precision.
       { id: 'loa',               label: 'LOA',                   cell: 'B17', type: 'text', meterFormat: true },
       { id: 'lbp',               label: 'LBP',                   cell: 'B18', type: 'text', meterFormat: true },
       { id: 'breadth',           label: 'Breadth',               cell: 'B19', type: 'text', meterFormat: true },
@@ -919,14 +983,10 @@ const SCHEMA = [
       { id: 'draft',             label: 'Draft',                 cell: 'B21', type: 'text', meterFormat: true },
       { id: 'grt',               label: 'GRT',                   cell: 'B22', type: 'text' },
       { id: 'vesselType',        label: 'Type of Vessel',        cell: 'B23', type: 'text' },
-
-      // ─── Transmitter info (filled last when sending report) ───
       { id: 'transmittedBy',     label: 'Transmitted By',        cell: 'B25', type: 'text', placeholder: 'Loulla K. Lauron' },
       { id: 'position',          label: 'Position',              cell: 'B26', type: 'text', placeholder: 'Document Controller 1' }
     ]
   },
-
-  // VESSEL SCHEDULE — all date fields, written to SHIPS DATA tab cells B7-B15
   {
     id: 'vesselSchedule',
     title: 'Vessel Schedule',
@@ -935,11 +995,6 @@ const SCHEMA = [
     desc: 'Request and drydocking timeline.',
     fields: [
       { id: 'dateRequested',     label: 'Date Requested',        cell: 'B7',  type: 'date', dateAsText: true },
-      // Ordinal Date and Month & Year are auto-derived from Date Requested in
-      // autoFillScheduleFromDate() and synced to cells B8/B9. They're hidden
-      // from the entry form (hidden: true) since the user shouldn't have to
-      // think about them — but the values still flow into the spreadsheet and
-      // the resulting PDF.
       { id: 'ordinalDate',       label: 'Ordinal Date',          cell: 'B8',  type: 'text', placeholder: '27th',          readonly: true, hidden: true },
       { id: 'monthYear',         label: 'Month & Year',          cell: 'B9',  type: 'text', placeholder: 'March 2026',    readonly: true, hidden: true },
       { id: 'arrivalDate',       label: 'Arrival Date',          cell: 'B10', type: 'date' },
@@ -950,8 +1005,6 @@ const SCHEMA = [
       { id: 'secondUndockingDate', label: '2nd Undocking Date',  cell: 'B14', type: 'date' }
     ]
   },
-
-  // LOAD LINE CALIBRATION — measurements written to SHIPS DATA tab cells B29-B32
   {
     id: 'loadLineCal',
     title: 'Load Line Calibration',
@@ -965,8 +1018,6 @@ const SCHEMA = [
       { id: 'freshWater',        label: 'Fresh water (mm)',      cell: 'B32', type: 'number', placeholder: '39' }
     ]
   },
-
-  // RUDDER — clearance grid: positions × Center/Port/Stbd × Upper/Lower × BP/AP
   {
     id: 'rudder',
     title: 'Rudder Stock & Pintle Bushing',
@@ -1013,8 +1064,6 @@ const SCHEMA = [
       ]
     }
   },
-
-  // CHAIN CALIBRATION
   {
     id: 'chain',
     title: 'Chain Calibration',
@@ -1024,8 +1073,6 @@ const SCHEMA = [
     type: 'chainGrid',
     shackleCount: 7,
     linksPerShackle: 4,
-    // Shackles 1-5 (idx 0-4) → 'CHAIN CALIB.'   rows 19..38 (4-row blocks)
-    // Shackles 6-7 (idx 5-6) → 'CHAIN CALIB. 2' rows 19..26 (4-row blocks)
     rowMap: function(shackleIdx, linkIdx) {
       if (shackleIdx < 5) {
         return { sheet: 'CHAIN CALIB.',   row: 19 + shackleIdx * 4 + linkIdx };
@@ -1037,8 +1084,6 @@ const SCHEMA = [
       stbdX: 'N', stbdY: 'P'
     }
   },
-
-  // TEST REPORT
   {
     id: 'testReport',
     title: 'Test Report',
@@ -1090,8 +1135,6 @@ const SCHEMA = [
       { id: 'testRemarks', label: 'Other Remarks', cell: 'A36', type: 'textarea' }
     ]
   },
-
-  // PROPELLER
   {
     id: 'propeller',
     title: 'Propeller Shaft Bearing',
@@ -1140,8 +1183,6 @@ const SCHEMA = [
       ]
     }
   },
-
-  // WORK DONE
   {
     id: 'workDone',
     title: 'Work Done',
@@ -1155,7 +1196,6 @@ const SCHEMA = [
     },
     sheets: ['WORK DONE', 'WORK DONE 2'],
     groups: [
-      // ─────── Page 1 (WORK DONE tab) ───────
       {
         title: 'No. 1 — Dock Works',
         sheet: 'WORK DONE',
@@ -1206,7 +1246,6 @@ const SCHEMA = [
           { id: 'w4_zinc',       label: 'Renewal of Zinc Anodes',                checkCell: 'A41_check' }
         ]
       },
-      // ─────── Page 2 (WORK DONE 2 tab) ───────
       {
         title: 'No. 5 — Tailshaft Works',
         sheet: 'WORK DONE 2',
@@ -1257,7 +1296,7 @@ const CONFIG_KEY = 'sfship_config_v2';
 const DB_NAME = 'sfship_db_v2';
 const DB_STORE = 'entries';
 const DB_AUTO_STORE = 'autocomplete';
-const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
 
 const AUTOCOMPLETE_FIELDS = new Set([
   'shipsData__companyName',
@@ -1470,6 +1509,7 @@ $('#signOutBtn').addEventListener('click', () => {
   if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
   sessionStorage.removeItem('sfship_token');
+  cachedUserEmail = null;
   renderAuth();
   toast('Signed out');
 });
@@ -1479,13 +1519,14 @@ if (setupSignOutBtn) {
     if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
     accessToken = null;
     sessionStorage.removeItem('sfship_token');
+    cachedUserEmail = null;
     renderAuth();
     toast('Signed out — sign in again from the Entry tab');
   });
 }
 
 /* =========================================================================
-   FORM RENDERING — build from SCHEMA
+   FORM RENDERING
    ========================================================================= */
 function buildForm() {
   const form = $('#entryForm');
@@ -1536,10 +1577,6 @@ function buildSection(sec) {
     body.appendChild(buildWorkChecklist(sec));
   }
 
-  // "Mark as Complete" button — sits at the end of every section's body.
-  // Tapping toggles the status badge in the section's summary between
-  // "Complete" and the auto-derived state ("No Data" / "In Progress").
-  // Status is session-only (no persistence to draft / sheet).
   const completeRow = document.createElement('div');
   completeRow.className = 'sec-complete-row';
   const completeBtn = document.createElement('button');
@@ -1582,12 +1619,9 @@ function buildFieldList(sec) {
       const rightHidden = !!right.hidden;
 
       if (leftHidden && rightHidden) {
-        // Both hidden — append the bare hidden inputs directly, no row wrapper.
         wrap.appendChild(buildField(left, sec.id));
         wrap.appendChild(buildField(right, sec.id));
       } else if (leftHidden || rightHidden) {
-        // One hidden, one visible — append hidden input first (no slot), then
-        // the visible field at full width (no field-row wrapper).
         const visible = leftHidden ? right : left;
         const hidden  = leftHidden ? left  : right;
         wrap.appendChild(buildField(hidden, sec.id));
@@ -1632,17 +1666,11 @@ function buildField(f, sectionId) {
   div.className = 'field';
   const fieldName = `${sectionId}__${f.id}`;
 
-  // Hidden fields: still rendered into the form (so collectFormData picks
-  // them up and they sync to the Sheet / PDF), but invisible to the user.
-  // Used for fields that are auto-derived from another field — e.g. Ordinal
-  // Date and Month & Year on Vessel Schedule, both computed from Date Requested.
   if (f.hidden) {
     const hidden = document.createElement('input');
     hidden.type = 'hidden';
     hidden.name = fieldName;
     if (f.readonly) hidden.dataset.readonly = '1';
-    // We return the bare input (no wrapper div) so it doesn't occupy a grid
-    // slot in field-row layouts.
     return hidden;
   }
 
@@ -1651,20 +1679,8 @@ function buildField(f, sectionId) {
 
   const optBit = f.required ? '<span class="opt">REQUIRED</span>' : '';
   const autoAttr = hasRecall ? ` data-recall="${fieldName}" autocomplete="off"` : '';
-  // f.readonly = true → render the input as readonly (used for fields that
-  // are computed from other fields, e.g. Ordinal Date / Month & Year derived
-  // from Date Requested). The user can't edit these directly; changing them
-  // requires changing the source field.
   const readonlyAttr = f.readonly ? ' readonly' : '';
-  // f.meterFormat = true → input gets auto " m" suffix + 2-decimal-place
-  // formatting on blur/Enter, with confirm dialog if the user types 3+ decimal
-  // places. Implemented via global handlers that target inputs with data-meter.
-  // Also turns inputmode=decimal so the mobile numeric keypad shows up.
   const meterAttrs = f.meterFormat ? ' data-meter="1" inputmode="decimal"' : '';
-  // Placeholders globally removed per user preference — clean empty boxes,
-  // no faint hint text. Field labels above the input still describe what's
-  // expected. (`f.placeholder` is left in the schema in case it's reintroduced
-  // later — we just stop emitting it onto the input.)
   let input;
   if (f.type === 'textarea') {
     input = `<textarea name="${fieldName}" rows="2"${autoAttr}${readonlyAttr}></textarea>`;
@@ -2193,15 +2209,6 @@ function updateAllProgress() {
   updateAllSectionStatuses();
 }
 
-/* =========================================================================
-   SECTION STATUS BADGES (session-only, not persisted)
-   Each section shows a small badge in its summary header with one of:
-     • "No Data"     — default; section has zero filled fields, not marked complete
-     • "In Progress" — auto: at least one field filled, but not yet marked complete
-     • "Complete"    — manual: user tapped "Mark as Complete" in this section
-   The completed set is held only in memory; it resets on page reload, on
-   loading a draft, and on starting a new entry. Doesn't affect sync at all.
-   ========================================================================= */
 const completedSections = new Set();
 
 function setSectionStatus(secId, label, cls) {
@@ -2225,7 +2232,6 @@ function updateAllSectionStatuses() {
         setSectionStatus(sec.id, 'No Data', null);
       }
     }
-    // Reflect complete state on the button too
     const btn = document.querySelector(`[data-complete-for="${sec.id}"]`);
     if (btn) {
       btn.classList.toggle('is-complete', isComplete);
@@ -2239,9 +2245,6 @@ function toggleSectionComplete(secId) {
     completedSections.delete(secId);
   } else {
     completedSections.add(secId);
-    // Auto-collapse the section to just the title bar when marked Complete.
-    // (When the user UNDOES Complete, we leave the section in whatever state
-    // it's in — they can manually expand if needed.)
     const det = document.querySelector(`details.section[data-section-id="${secId}"]`);
     if (det) det.open = false;
   }
@@ -2249,9 +2252,6 @@ function toggleSectionComplete(secId) {
   applySectionLocks();
 }
 
-/* Apply or remove the "locked while Complete" visual + interaction state on
-   every section. When a section is Complete, the entire body gets a CSS class
-   that fades inputs and intercepts edit attempts (see below). */
 function applySectionLocks() {
   for (const sec of SCHEMA) {
     const det = document.querySelector(`details.section[data-section-id="${sec.id}"]`);
@@ -2261,22 +2261,15 @@ function applySectionLocks() {
   }
 }
 
-/* When the section is locked (.section-locked), tapping any input/button/pill
-   inside it is intercepted: we show a one-line toast nudging the user to tap
-   "Mark as Complete" again to unlock for editing. The pointer-events trick is
-   applied via CSS — we intercept clicks at the body level using a capturing
-   listener so we can preventDefault BEFORE the form element gets the event. */
 document.addEventListener('click', (e) => {
   const lockedBody = e.target.closest('.section-locked .sec-body');
   if (!lockedBody) return;
-  // Allow clicks on the Complete button itself (so user can unlock) and on
-  // the section header / summary (so user can collapse/expand).
   if (e.target.closest('.sec-complete-btn')) return;
   if (e.target.closest('summary')) return;
   e.preventDefault();
   e.stopPropagation();
   toast('Tap "Mark as Complete" again to edit', 'info');
-}, true); // capture phase so we run before native handlers
+}, true);
 
 function resetSectionStatuses() {
   completedSections.clear();
@@ -2432,8 +2425,14 @@ async function loadEntryForEdit(id) {
 
 function updateDraftBar() {
   const bar = $('#draftBar');
-  if (!editingId) { bar.style.display = 'none'; return; }
+  if (cloudLockedProjectNo) {
+    // Cloud lock state takes precedence over local draft bar
+    applyCloudLockUI();
+    return;
+  }
+  if (!editingId) { bar.style.display = 'none'; bar.classList.remove('editing','cloud-edit','cloud-readonly'); return; }
   bar.style.display = 'flex';
+  bar.classList.remove('cloud-edit','cloud-readonly');
   bar.classList.add('editing');
   const data = collectFormData();
   const { projectNo, vesselName } = getProjectAndVessel(data);
@@ -2441,7 +2440,22 @@ function updateDraftBar() {
   $('#draftBarName').textContent = `${projectNo || '—'} · ${vesselName || 'Untitled'}`;
 }
 
-$('#cancelEditBtn').addEventListener('click', () => {
+$('#cancelEditBtn').addEventListener('click', async () => {
+  if (cloudLockedProjectNo) {
+    if (!cloudReadOnly) {
+      // Try to release the cloud lock before clearing
+      try {
+        const userEmail = await getUserEmail();
+        await cloudCall('releaseLock', { projectNo: cloudLockedProjectNo, userEmail });
+        toast('Lock released', 'success');
+      } catch (e) { /* best-effort */ }
+    }
+    cloudLockedProjectNo = null;
+    cloudReadOnly = false;
+    clearForm();
+    applyCloudLockUI();
+    return;
+  }
   if (!confirm('Discard changes and return to a fresh form?')) return;
   editingId = null; clearForm(); updateDraftBar();
 });
@@ -2460,20 +2474,11 @@ document.addEventListener('input', (e) => {
   }
 });
 
-/* Meter-format fields (LOA, LBP, Breadth, Depth, Draft on Ships Data).
-   - On focus: strip the trailing " m" so the user can edit just the number.
-   - On blur: re-append " m" with the value formatted to 2 decimals minimum.
-     If the user typed 3 or more decimal places, we confirm before keeping the
-     extra precision. Cancel → round to 2 decimals; OK → keep as-typed.
-   - Empty values stay empty (no "0.00 m" forced).
-   - Non-numeric input is left untouched so users can still type "-" or notes
-     in those fields without us mangling them. */
 document.addEventListener('focusin', (e) => {
   const el = e.target;
   if (!el || !el.matches || !el.matches('input[data-meter="1"]')) return;
   const v = (el.value || '').trim();
   if (/\sm$/i.test(v)) {
-    // Drop the trailing " m" (case-insensitive) so the user edits the number.
     el.value = v.replace(/\s*m$/i, '').trim();
   }
 });
@@ -2483,19 +2488,15 @@ document.addEventListener('focusout', (e) => {
   if (!el || !el.matches || !el.matches('input[data-meter="1"]')) return;
   const raw = (el.value || '').trim();
   if (!raw) return;
-  // If somehow the value still has " m" (e.g., the user pasted it back), strip
-  // before parsing.
   const numericStr = raw.replace(/\s*m$/i, '').trim();
   const n = parseFloat(numericStr);
-  if (!Number.isFinite(n)) return; // leave non-numeric input alone
+  if (!Number.isFinite(n)) return;
 
-  // Count how many decimal digits the user actually typed.
   const decMatch = /\.(\d+)$/.exec(numericStr);
   const decCount = decMatch ? decMatch[1].length : 0;
 
   let finalNumStr;
   if (decCount >= 3) {
-    // Ask before keeping high-precision values; common case is a typo.
     const ok = window.confirm(
       `You entered ${decCount} decimal places (${numericStr}).\n\n` +
       `OK = keep as ${numericStr} m\nCancel = round to ${n.toFixed(2)} m`
@@ -2511,13 +2512,6 @@ document.addEventListener('focusout', (e) => {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 });
 
-/* Auto-format decimal fields to 2 decimal places when the user leaves the
-   field. Applies to inputs tagged with data-decimal2="1" — currently rudder
-   grid (RUDDER STOCK + PINTLE BUSHING measurements) and propeller/tailshaft
-   clearance grids. Whole numbers like "5" become "5.00", "5.5" → "5.50",
-   "5.456" → "5.46" (rounded). Empty values are left empty. Non-numeric input
-   is left untouched (so users can still type things like "-" or "N/A" without
-   them getting mangled). */
 document.addEventListener('focusout', (e) => {
   const el = e.target;
   if (!el || !el.matches || !el.matches('input[data-decimal2="1"]')) return;
@@ -2531,36 +2525,22 @@ document.addEventListener('focusout', (e) => {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 });
 
-/* Enter / Return key blurs the active input, dismissing the on-screen keyboard
-   on mobile and signaling "done with this field." Applies to all single-line
-   inputs in the app — text, number, date, etc. Textareas are intentionally
-   excluded so multi-line notes still allow newlines on Enter. The `form` tag
-   already has autocomplete="off" but we also call preventDefault to stop any
-   accidental form submission from a stray Enter press. */
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
   const t = e.target;
   if (!t || !t.matches) return;
-  if (t.matches('textarea')) return; // allow newlines in multi-line fields
+  if (t.matches('textarea')) return;
   if (!t.matches('input')) return;
   e.preventDefault();
   if (typeof t.blur === 'function') t.blur();
 });
 
-/* When the user picks a Date Requested, auto-populate the two derived fields:
-   - "Ordinal Date" → "2nd", "27th", "1st", etc.
-   - "Month & Year" → "January 2026", "March 2026", etc.
-   We only auto-fill if the target field is empty OR was previously auto-filled
-   (we tag it via dataset so manual edits don't get overwritten on next change). */
 function autoFillScheduleFromDate(isoDate) {
   if (!isoDate) return;
-  // The date input gives us YYYY-MM-DD. Parse via UTC components to avoid the
-  // local-timezone shift that would turn 2026-01-02 into Jan 1 in negative-UTC
-  // zones. We only need day/month/year as numbers — no time-of-day involved.
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
   if (!m) return;
   const year = parseInt(m[1], 10);
-  const monthIdx = parseInt(m[2], 10) - 1; // 0-11
+  const monthIdx = parseInt(m[2], 10) - 1;
   const day = parseInt(m[3], 10);
 
   const MONTHS = [
@@ -2578,7 +2558,6 @@ function autoFillScheduleFromDate(isoDate) {
 }
 
 function ordinalSuffix(n) {
-  // Handles 11th/12th/13th edge case and the standard st/nd/rd/th rule.
   const mod100 = n % 100;
   if (mod100 >= 11 && mod100 <= 13) return 'th';
   switch (n % 10) {
@@ -2592,14 +2571,8 @@ function ordinalSuffix(n) {
 function fillIfEmptyOrAuto(fieldName, value) {
   const el = document.querySelector(`[name="${fieldName}"]`);
   if (!el) return;
-  // Ordinal Date and Month & Year are readonly inputs (locked in the schema),
-  // so no manual user typing can ever exist here — we always overwrite when
-  // Date Requested changes. The dataset.autofilled tag is preserved purely as
-  // a marker for any future logic that might need to know "this came from
-  // auto-fill, not from a draft load".
   el.value = value;
   el.dataset.autofilled = '1';
-  // Notify the rest of the app (progress, status badges, draft autosave)
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -2762,7 +2735,6 @@ function formatDate(iso) {
   return `${months[m-1]} ${d}, ${y}`;
 }
 
-// Build the array of {sheet, range, value} writes for a given entry
 function buildSheetWrites(data) {
   const writes = [];
   for (const sec of SCHEMA) {
@@ -2890,7 +2862,6 @@ function buildSheetWrites(data) {
         if (v) writes.push({ sheet: sec.sheet, range: f.cell, value: v });
       }
     } else if (sec.type === 'workChecklist') {
-      // Type of repair — write to both WORK DONE and WORK DONE 2
       const tor = data['workDone__typeRepair'] || '';
       const tre = sec.typeOfRepair;
       if (tre.regularCells) {
@@ -2900,10 +2871,6 @@ function buildSheetWrites(data) {
         writes.push({ sheet: sec.sheet, range: tre.regularCell, value: tor === 'regular' });
         writes.push({ sheet: sec.sheet, range: tre.emergencyCell, value: tor === 'emergency' });
       }
-      // Items: NO ✓ writes to column A (template's column A holds merged "No. X" labels —
-      // writing to those merged ranges breaks the merge). The hide-rows logic below removes
-      // unchecked rows, so visible rows in the resulting PDF = items that were done.
-      // We DO still write any per-item location notes (column P) for items that were checked.
       for (const grp of sec.groups) {
         const grpSheet = grp.sheet || sec.sheet;
         for (const item of grp.items) {
@@ -2919,7 +2886,6 @@ function buildSheetWrites(data) {
   return writes;
 }
 
-// Search a parent folder for a sub-folder whose NAME starts with the given project number.
 async function findVesselFolder(parentFolderId, projectNo) {
   if (!parentFolderId || !projectNo) return null;
   const safePrefix = projectNo.replace(/'/g, "\\'");
@@ -2975,10 +2941,6 @@ async function syncEntry(entry) {
       {
         method: 'POST',
         body: JSON.stringify({
-          // RAW (not USER_ENTERED) so Sheets doesn't auto-parse text as dates/numbers
-          // or auto-resize row heights. With USER_ENTERED, the synced copy was rendering
-          // taller than the master template (synced RUDDER = 2 pages, template = 1 page).
-          // RAW preserves the template's exact row heights and pagination.
           valueInputOption: 'RAW',
           data: valueRanges.slice(i, i + CHUNK)
         })
@@ -3002,25 +2964,8 @@ async function syncEntry(entry) {
 
   await renumberWorkDoneCategories(data, newFile.id);
 
-  // Combined PDF generation is DISABLED. The browser-side combined export always had
-  // orphan signature pages (a Google Sheets export quirk we couldn't work around).
-  // Apps Script-generated per-tab PDFs (below) are the cleaner replacement.
-  // To re-enable, uncomment the block below.
   let pdfFileId = null, pdfFileName = null;
-  // try {
-  //   const pdfResult = await generateAndUploadPDF(newFile.id, data);
-  //   pdfFileId = pdfResult.fileId;
-  //   pdfFileName = pdfResult.fileName;
-  // } catch (pdfErr) {
-  //   console.warn('PDF generation failed:', pdfErr);
-  // }
 
-  // Per-tab PDFs via Apps Script. The browser-side per-tab export approach didn't
-  // work because Google's docs.google.com export endpoint rejects URL patterns
-  // with gid + range params from a browser fetch (returns HTML sign-in page).
-  // Apps Script runs server-side with a different OAuth flow that works reliably.
-  // This is best-effort: if the Apps Script call fails, the combined PDF is still
-  // available, and the user can fall back to manual download.
   let perTabPdfs = [];
   try {
     perTabPdfs = await callAppsScriptForPerTabPDFs(newFile.id, data);
@@ -3031,29 +2976,16 @@ async function syncEntry(entry) {
   return { fileId: newFile.id, fileName, pdfFileId, pdfFileName, perTabPdfs };
 }
 
-// URL of the deployed Apps Script Web App that generates per-tab PDFs server-side.
-// Set up via: https://script.google.com → New project → paste AppsScript_Code.gs
-// → Deploy as Web App → "Anyone" access → copy the URL here.
 const APPS_SCRIPT_PER_TAB_PDF_URL =
   'https://script.google.com/macros/s/AKfycby64Ap7VkdU3LtuzQetIoi2dgKoUYHvi2lqlDtevL3MYo_C-SK0g75Pr8K1l5BmLqw/exec';
 
-// Call the Apps Script Web App to generate per-tab PDFs for the synced spreadsheet.
-// Returns array of { fileId, fileName, tabName } for successfully created PDFs,
-// or empty array if anything fails.
-//
-// We split the work into batches of 4 tabs per call. Apps Script web app calls
-// are limited (browser-side ~60s, server-side hard 6min, but in practice exports
-// over ~30s have been unreliable on mobile). Three calls of 4 tabs each = ~20s
-// each, well under any timeout.
 async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
   if (!APPS_SCRIPT_PER_TAB_PDF_URL || APPS_SCRIPT_PER_TAB_PDF_URL.includes('PASTE_URL_HERE')) {
-    return []; // Apps Script not configured — silently skip.
+    return [];
   }
   const projectNo = (data['shipsData__projectNo'] || '').trim();
   const vesselName = (data['shipsData__vesselName'] || '').trim();
 
-  // We don't know totalTabs until the first response; use 12 as a safe upper
-  // bound (current PDF_TAB_CONFIG has 11 tabs, leaving headroom).
   const BATCH_SIZE = 4;
   const ASSUMED_MAX = 12;
   const allUploaded = [];
@@ -3067,13 +2999,8 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
     batchNumber += 1;
     const end = Math.min(start + BATCH_SIZE, actualTotal);
 
-    // Note: we don't send the user's OAuth token. Apps Script runs as the project owner
-    // and has its own access to the user's Drive (granted during the first-run permission
-    // popup when the script was deployed). The Web App URL is "Anyone" access — anyone
-    // who has the URL can trigger PDF generation, so the URL is the de facto secret.
     const resp = await fetch(APPS_SCRIPT_PER_TAB_PDF_URL, {
       method: 'POST',
-      // 'text/plain' avoids a CORS preflight (Apps Script doesn't handle OPTIONS).
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         spreadsheetId,
@@ -3081,8 +3008,6 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
         vesselName,
         startIndex: start,
         endIndex: end,
-        // Skip the row-height normalize phase on every call after the first.
-        // That phase touches all tabs in the spreadsheet, so doing it once is enough.
         skipNormalize: batchNumber > 1
       })
     });
@@ -3094,8 +3019,6 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
       throw new Error(result.error || `Apps Script ok=false (batch ${batchNumber})`);
     }
 
-    // Update actualTotal from the first response so subsequent batches stop at
-    // the right point.
     if (typeof result.totalTabs === 'number') {
       actualTotal = result.totalTabs;
     }
@@ -3104,9 +3027,6 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
     if (Array.isArray(result.errors))   allErrors.push(...result.errors);
     if (Array.isArray(result.skipped))  allSkipped.push(...result.skipped);
 
-    // Pause between batches to give Google's per-user export rate limit time to
-    // reset. Without this, a batch that hits the limit at the end will leak into
-    // the next batch's first export.
     if (start + BATCH_SIZE < actualTotal) {
       await new Promise(r => setTimeout(r, 3000));
     }
@@ -3114,16 +3034,13 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
 
   if (allErrors.length > 0) {
     console.warn('[per-tab PDF] some tabs failed:', allErrors);
-    // Show which tabs failed and the error messages, so the user can see them
-    // directly on phone (no developer console needed).
     try {
       const failedSummary = allErrors
         .map(e => `${e.tabName}: ${e.error}`)
         .join('\n');
       toast(`PDF errors on ${allErrors.length} tab(s) — see alert`, 'error');
-      // Brief delay so toast appears first, then alert fires.
       setTimeout(() => alert('Tabs that failed to PDF:\n\n' + failedSummary), 300);
-    } catch (_) { /* ignore display failures */ }
+    } catch (_) { /* ignore */ }
   }
   if (allSkipped.length > 0) {
     console.info('[per-tab PDF] some tabs skipped (no data):', allSkipped);
@@ -3136,210 +3053,6 @@ const PDF_TABS = [
   'PROPELLER', 'LOAD LINE', 'WORK DONE', 'WORK DONE 2', 'CERT. DRYDOCK', 'LIST OF VESSEL'
 ];
 
-
-// Check whether a blob's first bytes are "%PDF" — the magic header for valid PDF files.
-// Returns false for HTML, JSON, or any non-PDF response (which means the export "failed"
-// even though HTTP returned 200 OK).
-async function isPdfBlob(blob) {
-  if (!blob || blob.size < 5) return false;
-  const head = await blob.slice(0, 5).text();
-  return head.startsWith('%PDF');
-}
-
-// Export PDF via the docs.google.com endpoint. Accepts formatting params (size, fit, etc.)
-// but token auth is unreliable — sometimes returns HTML (sign-in page).
-async function tryDocsExport(spreadsheetId) {
-  const params = new URLSearchParams();
-  params.set('format', 'pdf');
-  params.set('size', 'A4');
-  params.set('portrait', 'true');
-  // NOTE: No 'scale' or 'fitw' parameter here. Setting either of those overrides
-  // the spreadsheet's saved per-tab print settings (set by the user via File→Print
-  // in the master template). Letting the export use the saved settings means each
-  // tab respects its own scale — every tab is now configured Fit-to-page in the
-  // template (chain calib was split into two tabs so it no longer needs Normal).
-  params.set('gridlines', 'false');
-  params.set('printtitle', 'false');
-  params.set('sheetnames', 'false');
-  params.set('pagenumbers', 'false');
-  params.set('fzr', 'true');
-  params.set('attachment', 'false');
-  const exportUrl =
-    `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?${params.toString()}`;
-  const pdfResp = await fetch(exportUrl, {
-    headers: { 'Authorization': 'Bearer ' + accessToken }
-  });
-  if (!pdfResp.ok) {
-    const txt = await pdfResp.text();
-    throw new Error(`PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
-  }
-  return await pdfResp.blob();
-}
-
-// Export PDF via the official Drive API. Token auth works correctly here.
-// Doesn't accept formatting params — uses the spreadsheet's saved print settings instead.
-// (Make sure the master template's File → Print settings are configured the way you want.)
-async function tryDriveApiExport(spreadsheetId) {
-  const exportUrl =
-    `https://www.googleapis.com/drive/v3/files/${spreadsheetId}/export?mimeType=application%2Fpdf`;
-  const pdfResp = await fetch(exportUrl, {
-    headers: { 'Authorization': 'Bearer ' + accessToken }
-  });
-  if (!pdfResp.ok) {
-    const txt = await pdfResp.text();
-    throw new Error(`Drive API PDF export HTTP ${pdfResp.status}: ${txt.slice(0, 200)}`);
-  }
-  return await pdfResp.blob();
-}
-
-async function generateAndUploadPDF(spreadsheetId, data) {
-  const meta = await gFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title,hidden))`
-  );
-  const allSheets = (meta.sheets || []).map(s => s.properties);
-  const include = new Set(PDF_TABS);
-
-  const wd = SCHEMA.find(s => s.id === 'workDone');
-  if (wd) {
-    const wd2HasChecked = wd.groups
-      .filter(g => (g.sheet || wd.sheet) === 'WORK DONE 2')
-      .some(g => g.items.some(it => (data[`workDone__${it.id}`] || '').toString().trim() !== ''));
-    if (!wd2HasChecked) {
-      include.delete('WORK DONE 2');
-    }
-  }
-
-  // CHAIN CALIB. 2 holds shackles 6-7 only. If no data was entered for those
-  // shackles, skip the second chain page so the PDF doesn't get a blank page.
-  const chain = SCHEMA.find(s => s.id === 'chain');
-  if (chain) {
-    let chain2HasData = false;
-    outer: for (let s = 5; s < chain.shackleCount; s++) {
-      for (let l = 0; l < chain.linksPerShackle; l++) {
-        const k = `chain__s${s}_l${l}_`;
-        if (
-          (data[k + 'port_x'] || '').toString().trim() !== '' ||
-          (data[k + 'port_y'] || '').toString().trim() !== '' ||
-          (data[k + 'stbd_x'] || '').toString().trim() !== '' ||
-          (data[k + 'stbd_y'] || '').toString().trim() !== ''
-        ) {
-          chain2HasData = true;
-          break outer;
-        }
-      }
-    }
-    if (!chain2HasData) {
-      include.delete('CHAIN CALIB. 2');
-    }
-  }
-
-  const tabsToHide = allSheets.filter(p => !include.has(p.title) && !p.hidden);
-  const tabsToUnhide = tabsToHide.slice();
-
-  if (tabsToHide.length > 0) {
-    const hideRequests = tabsToHide.map(p => ({
-      updateSheetProperties: {
-        properties: { sheetId: p.sheetId, hidden: true },
-        fields: 'hidden'
-      }
-    }));
-    await gFetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
-      { method: 'POST', body: JSON.stringify({ requests: hideRequests }) }
-    );
-  }
-
-  let pdfBlob;
-  try {
-    // Use the docs.google.com export first because it respects the spreadsheet's
-    // saved per-tab print settings (set in the master template via File → Print →
-    // Scale dropdown). This matches the behavior of File → Download → PDF in the
-    // Google Sheets UI, so tabs render the same way they look in the print preview.
-    //
-    // The Drive API export, while having more reliable token authentication, doesn't
-    // appear to honor per-tab scale settings — it uses Normal (100%) for everything,
-    // causing tabs that are slightly taller than one page to spill onto a 2nd page
-    // with orphan signature blocks.
-    pdfBlob = await tryDocsExport(spreadsheetId);
-
-    // Validate: real PDFs start with the bytes "%PDF". If for any reason the docs
-    // export didn't return a valid PDF (token issue, redirect to sign-in page),
-    // fall back to the Drive API as a last resort.
-    if (!(await isPdfBlob(pdfBlob))) {
-      console.warn('docs.google.com export returned non-PDF — falling back to Drive API export');
-      pdfBlob = await tryDriveApiExport(spreadsheetId);
-      if (!(await isPdfBlob(pdfBlob))) {
-        throw new Error('Both PDF export endpoints returned non-PDF data. The Sheet was saved successfully, but the PDF could not be generated. You can manually download a PDF from the Sheet menu.');
-      }
-    }
-  } finally {
-    if (tabsToUnhide.length > 0) {
-      const unhideRequests = tabsToUnhide.map(p => ({
-        updateSheetProperties: {
-          properties: { sheetId: p.sheetId, hidden: false },
-          fields: 'hidden'
-        }
-      }));
-      try {
-        await gFetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
-          { method: 'POST', body: JSON.stringify({ requests: unhideRequests }) }
-        );
-      } catch (e) {
-        console.warn('Failed to unhide tabs after PDF export:', e);
-      }
-    }
-  }
-
-  const projectNo = (data['shipsData__projectNo'] || '').trim();
-  const vesselName = (data['shipsData__vesselName'] || 'VESSEL').trim();
-  const cleanVessel = vesselName.replace(/[\\\/:*?"<>|]/g, '');
-  const pdfFileName = `${projectNo} ${cleanVessel} DRYDOCKING REPORT.pdf`.trim();
-
-  let pdfTargetFolderId = config.folderId || null;
-  if (config.folderId && projectNo) {
-    try {
-      const matchedFolderId = await findVesselFolder(config.folderId, projectNo);
-      if (matchedFolderId) pdfTargetFolderId = matchedFolderId;
-    } catch (e) {
-      console.warn('Vessel folder search for PDF failed, using fallback folder', e);
-    }
-  }
-
-  const metadata = { name: pdfFileName, mimeType: 'application/pdf' };
-  if (pdfTargetFolderId) metadata.parents = [pdfTargetFolderId];
-
-  const boundary = 'sfship_pdf_' + Math.random().toString(36).slice(2);
-  const metaPart =
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify(metadata) + '\r\n';
-  const dataPartHeader = `--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`;
-  const closing = `\r\n--${boundary}--`;
-
-  const body = new Blob([metaPart, dataPartHeader, pdfBlob, closing], {
-    type: `multipart/related; boundary=${boundary}`
-  });
-
-  const uploadResp = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + accessToken,
-        'Content-Type': `multipart/related; boundary=${boundary}`
-      },
-      body
-    }
-  );
-  if (!uploadResp.ok) {
-    const txt = await uploadResp.text();
-    throw new Error(`PDF upload HTTP ${uploadResp.status}: ${txt.slice(0, 200)}`);
-  }
-  const uploaded = await uploadResp.json();
-  return { fileId: uploaded.id, fileName: pdfFileName };
-}
-
-// Renumber Work Done categories so empty ones get skipped over.
 async function renumberWorkDoneCategories(data, spreadsheetId) {
   const wd = SCHEMA.find(s => s.id === 'workDone');
   if (!wd) return;
@@ -3354,9 +3067,6 @@ async function renumberWorkDoneCategories(data, spreadsheetId) {
     nextNum += 1;
     if (grp.headerRow) {
       const grpSheet = grp.sheet || wd.sheet;
-      // Write "No. X" to the FIRST cell of the merged column-A range (headerRow + 1).
-      // headerRow itself is the sub-header row (e.g., "Dock Works" in column B), with
-      // column A empty. The merged "No. X" cell starts on the row immediately below.
       valueWrites.push({
         range: `'${grpSheet}'!A${grp.headerRow + 1}`,
         values: [[`No. ${nextNum}`]]
@@ -3388,14 +3098,12 @@ async function buildHideRowsRequests(data, spreadsheetId) {
     sheetIdByName[s.properties.title] = s.properties.sheetId;
   }
 
-  // ---- WORK DONE (across both tabs) ----
   const wd = SCHEMA.find(s => s.id === 'workDone');
   if (wd) {
     const rowsBySheet = {};
     for (const grp of wd.groups) {
       const grpSheet = grp.sheet || wd.sheet;
       if (!rowsBySheet[grpSheet]) rowsBySheet[grpSheet] = [];
-      // Hide every unchecked item row
       for (const it of grp.items) {
         const v = data[`workDone__${it.id}`] || '';
         if (!v) {
@@ -3403,7 +3111,6 @@ async function buildHideRowsRequests(data, spreadsheetId) {
           if (m) rowsBySheet[grpSheet].push(parseInt(m[1], 10));
         }
       }
-      // Hide category sub-header row if no items in this group are checked
       const hasChecked = grp.items.some(it =>
         (data[`workDone__${it.id}`] || '').toString().trim() !== ''
       );
@@ -3416,15 +3123,8 @@ async function buildHideRowsRequests(data, spreadsheetId) {
       if (sid !== undefined) {
         requests.push(...rowRangesToHideRequests(sid, rows));
 
-        // Anchor the signature block at the bottom of the page. Layout:
-        //   rows 16-41: work item rows (editable)
-        //   row 42:     spacer row between items and signatures
-        //   rows 43-47: signature block (fixed position)
-        // When N item rows get hidden, the signature block visually shifts up by
-        // ~N * 21px. To keep signatures anchored at row 47's original position,
-        // we expand the spacer row (42) to absorb that lost space.
-        const SPACER_ROW = 42;          // row between items and signatures
-        const DEFAULT_ROW_HEIGHT = 21;  // px — matches Apps Script normalization
+        const SPACER_ROW = 42;
+        const DEFAULT_ROW_HEIGHT = 21;
         const hiddenCount = new Set(rows).size;
         const expandedHeight = DEFAULT_ROW_HEIGHT + (hiddenCount * DEFAULT_ROW_HEIGHT);
         requests.push({
@@ -3432,7 +3132,7 @@ async function buildHideRowsRequests(data, spreadsheetId) {
             range: {
               sheetId: sid,
               dimension: 'ROWS',
-              startIndex: SPACER_ROW - 1, // 0-indexed
+              startIndex: SPACER_ROW - 1,
               endIndex: SPACER_ROW
             },
             properties: { pixelSize: expandedHeight },
@@ -3442,15 +3142,6 @@ async function buildHideRowsRequests(data, spreadsheetId) {
       }
     }
   }
-
-  // ---- TEST REPORT ----
-  // Per user preference: do NOT hide unchecked test report items. The form
-  // should show every test row, with checked items marked (Passed/Failed/N/A)
-  // and unchecked items left blank but visible. This matches how the printed
-  // form is read at the yard — every line is a checklist item the inspector
-  // saw, even if no determination was made.
-  // (Hiding logic intentionally removed; previously we hid rows where the
-  // pass/fail/na value was empty.)
 
   return requests;
 }
@@ -3538,7 +3229,7 @@ async function renderDrafts() {
   const list = $('#draftsList');
   const all = (await dbAll()).filter(e => e.status === 'draft').sort((a,b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
   if (all.length === 0) {
-    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No drafts yet.<br/><small>Saved drafts appear here.</small></div>`;
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No local drafts.<br/><small>Saved drafts appear here. Use ☁️ Pull from Cloud to fetch cloud drafts.</small></div>`;
     return;
   }
   list.innerHTML = all.map(e => {
@@ -3811,9 +3502,6 @@ document.addEventListener('focusin', (e) => {
 
 document.addEventListener('input', (e) => {
   const input = e.target.closest('[data-recall]');
-  // Skip re-render if this input event was synthesized by a recall selection
-  // (we set a flag on the input so the just-fired event doesn't re-open the
-  // dropdown we just closed).
   if (input && !input._recallJustPicked) {
     _renderRecallDropdown(input);
   }
@@ -3881,6 +3569,274 @@ async function recordAutocompleteFromData(data) {
     if (v) await recallAdd(fieldName, v);
   }
 }
+
+/* =========================================================================
+   CLOUD DRAFTS MODULE — v3.35
+   Two-device collaboration via Apps Script + shared sheet.
+   ========================================================================= */
+let cloudLockedProjectNo = null;
+let cloudReadOnly = false;
+let cachedUserEmail = null;
+
+async function getUserEmail() {
+  if (cachedUserEmail) return cachedUserEmail;
+  if (!accessToken) return 'unknown';
+  try {
+    const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+    if (!resp.ok) return 'unknown';
+    const info = await resp.json();
+    cachedUserEmail = info.email || 'unknown';
+    return cachedUserEmail;
+  } catch (e) {
+    return 'unknown';
+  }
+}
+
+async function cloudCall(action, payload) {
+  if (!APPS_SCRIPT_PER_TAB_PDF_URL || APPS_SCRIPT_PER_TAB_PDF_URL.includes('PASTE_URL_HERE')) {
+    throw new Error('Apps Script URL not configured');
+  }
+  const body = Object.assign({ action: action }, payload || {});
+  const resp = await fetch(APPS_SCRIPT_PER_TAB_PDF_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return await resp.json();
+}
+
+async function openCloudModal() {
+  const modal = document.getElementById('cloudModal');
+  const body = document.getElementById('cloudModalBody');
+  modal.style.display = 'block';
+  body.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:30px 10px;">Loading drafts from cloud...</div>';
+
+  if (!isOnline) {
+    body.innerHTML = '<div style="text-align:center; color:var(--red); padding:30px 10px;">You\'re offline. Connect to internet and try again.</div>';
+    return;
+  }
+
+  try {
+    const result = await cloudCall('listDrafts', {});
+    if (!result.ok) throw new Error(result.error || 'Failed to list drafts');
+    const drafts = result.drafts || [];
+    if (drafts.length === 0) {
+      body.innerHTML = `
+        <div style="text-align:center; color:var(--ink-soft); padding:30px 10px;">
+          <div style="font-size:42px; color:var(--line); margin-bottom:8px;">☁</div>
+          No drafts in the cloud yet.<br/>
+          <small>Fill in the entry form and tap ☁️ Push to save a draft to the cloud.</small>
+        </div>`;
+      return;
+    }
+    const myEmail = await getUserEmail();
+    body.innerHTML = drafts.map(d => {
+      const lockedByOther = d.locked && d.lockedBy !== myEmail;
+      const lockedByMe = d.locked && d.lockedBy === myEmail;
+      const lastMod = d.lastModified ? new Date(d.lastModified).toLocaleString() : '—';
+      const editor = d.lastEditor || '—';
+      let statusBadge = '';
+      let actionBtns = '';
+      if (lockedByOther) {
+        statusBadge = `<span class="cloud-badge locked">🔒 Locked</span>`;
+        actionBtns = `<button class="cloud-pull-readonly" data-proj="${escapeHtml(d.projectNo)}">View Read-Only</button>`;
+      } else if (lockedByMe) {
+        statusBadge = `<span class="cloud-badge mine">🔓 Yours</span>`;
+        actionBtns = `<button class="primary cloud-pull" data-proj="${escapeHtml(d.projectNo)}">Continue Editing</button>`;
+      } else {
+        actionBtns = `<button class="primary cloud-pull" data-proj="${escapeHtml(d.projectNo)}">Pull & Edit</button>`;
+      }
+      const lockMeta = lockedByOther
+        ? `<div class="cloud-item-lock">🔒 Being edited by ${escapeHtml(d.lockedBy)}</div>`
+        : '';
+      return `
+        <div class="cloud-item ${lockedByOther ? 'locked' : ''}">
+          <div class="cloud-item-head">
+            <span class="cloud-item-proj">${escapeHtml(d.projectNo)}</span>
+            ${statusBadge}
+          </div>
+          <div class="cloud-item-vessel">${escapeHtml(d.vesselName || 'Untitled')}</div>
+          <div class="cloud-item-meta">Last edit: ${escapeHtml(editor)} · ${lastMod}</div>
+          ${lockMeta}
+          <div class="cloud-item-actions">
+            ${actionBtns}
+            <button class="danger cloud-delete" data-proj="${escapeHtml(d.projectNo)}" data-vessel="${escapeHtml(d.vesselName || '')}">Delete</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    body.querySelectorAll('.cloud-pull').forEach(b => {
+      b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'edit'));
+    });
+    body.querySelectorAll('.cloud-pull-readonly').forEach(b => {
+      b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'readonly'));
+    });
+    body.querySelectorAll('.cloud-delete').forEach(b => {
+      b.addEventListener('click', () => doDeleteCloudDraft(b.dataset.proj, b.dataset.vessel));
+    });
+  } catch (err) {
+    body.innerHTML = `<div style="text-align:center; color:var(--red); padding:30px 10px;">Error: ${escapeHtml(err.message || String(err))}</div>`;
+  }
+}
+
+function closeCloudModal() {
+  document.getElementById('cloudModal').style.display = 'none';
+}
+
+async function doPullDraft(projectNo, mode) {
+  if (!isOnline) { toast('Offline — can\'t pull', 'error'); return; }
+  if (!confirm(mode === 'readonly'
+    ? `Open ${projectNo} as READ-ONLY? You won't be able to save changes.`
+    : `Pull ${projectNo} from cloud? Any unsaved changes in the current form will be replaced.`)) return;
+
+  closeCloudModal();
+  toast('Pulling draft...', 'info');
+  try {
+    const userEmail = await getUserEmail();
+    const result = await cloudCall('loadDraft', { projectNo, userEmail, mode });
+    if (!result.ok) {
+      toast('Pull failed: ' + (result.error || 'unknown error'), 'error');
+      return;
+    }
+    if (mode === 'edit' && !result.gotLock) {
+      toast('Locked by ' + result.lockedBy + ' — opening read-only', 'error');
+      mode = 'readonly';
+    }
+    let parsed = {};
+    try { parsed = JSON.parse(result.jsonBlob || '{}'); } catch (e) { parsed = {}; }
+
+    editingId = null;
+    clearForm();
+    fillFormData(parsed);
+
+    cloudLockedProjectNo = projectNo;
+    cloudReadOnly = (mode === 'readonly');
+    applyCloudLockUI();
+    setView('entry');
+    toast(cloudReadOnly ? 'Loaded as read-only' : 'Pulled — locked to you', 'success');
+  } catch (err) {
+    toast('Pull error: ' + (err.message || String(err)), 'error');
+  }
+}
+
+async function doPushDraft() {
+  if (!isOnline) { toast('Offline — can\'t push', 'error'); return; }
+  if (!accessToken) { toast('Sign in to Google first', 'error'); return; }
+
+  const data = collectFormData();
+  const projectNo = (data['shipsData__projectNo'] || '').trim();
+  const vesselName = (data['shipsData__vesselName'] || '').trim();
+  if (!projectNo) { toast('Project No. required to push', 'error'); return; }
+  if (!vesselName) { toast('Vessel Name required to push', 'error'); return; }
+
+  if (cloudReadOnly) {
+    toast('Read-only mode — can\'t push', 'error');
+    return;
+  }
+
+  if (!confirm(`Push ${projectNo} to cloud? Other device will be able to pull it.`)) return;
+
+  toast('Pushing to cloud...', 'info');
+  try {
+    const userEmail = await getUserEmail();
+    const result = await cloudCall('saveDraft', {
+      projectNo: projectNo,
+      vesselName: vesselName,
+      jsonBlob: JSON.stringify(data),
+      userEmail: userEmail,
+      releaseLock: true
+    });
+    if (!result.ok) {
+      if (result.lockedBy) {
+        toast(`Locked by ${result.lockedBy} — can't push`, 'error');
+      } else {
+        toast('Push failed: ' + (result.error || 'unknown'), 'error');
+      }
+      return;
+    }
+    cloudLockedProjectNo = null;
+    cloudReadOnly = false;
+    applyCloudLockUI();
+    toast('Pushed to cloud ✓', 'success');
+  } catch (err) {
+    toast('Push error: ' + (err.message || String(err)), 'error');
+  }
+}
+
+async function doDeleteCloudDraft(projectNo, vesselName) {
+  if (!confirm(`Delete cloud draft ${projectNo} (${vesselName})?\n\nThis cannot be undone.`)) return;
+  try {
+    const result = await cloudCall('deleteDraft', { projectNo });
+    if (!result.ok) { toast('Delete failed: ' + result.error, 'error'); return; }
+    toast('Deleted', 'success');
+    openCloudModal();
+  } catch (err) {
+    toast('Delete error: ' + err.message, 'error');
+  }
+}
+
+function applyCloudLockUI() {
+  const bar = document.getElementById('draftBar');
+  const label = document.getElementById('draftBarLabel');
+  const cancelBtn = document.getElementById('cancelEditBtn');
+  const form = document.getElementById('entryForm');
+  const saveBtn = document.getElementById('saveDraftBtn');
+  const completeBtn = document.getElementById('completeBtn');
+  const pushBtn = document.getElementById('pushCloudBtn');
+
+  if (cloudLockedProjectNo) {
+    bar.style.display = 'flex';
+    bar.classList.remove('editing');
+    if (cloudReadOnly) {
+      bar.classList.remove('cloud-edit');
+      bar.classList.add('cloud-readonly');
+      label.textContent = '🔒 READ-ONLY (LOCKED BY ANOTHER USER)';
+      cancelBtn.textContent = 'Close';
+      form.style.pointerEvents = 'none';
+      form.style.opacity = '0.7';
+saveBtn.style.display = 'none';
+      completeBtn.style.display = 'none';
+      pushBtn.style.display = 'none';
+    } else {
+      bar.classList.remove('cloud-readonly');
+      bar.classList.add('cloud-edit');
+      label.textContent = '☁️ EDITING CLOUD DRAFT (LOCKED TO YOU)';
+      cancelBtn.textContent = 'Release & discard';
+      form.style.pointerEvents = '';
+      form.style.opacity = '';
+      saveBtn.style.display = 'none';   // hide local Save Draft in cloud mode
+      completeBtn.style.display = 'none'; // hide Mark Complete in cloud mode
+      pushBtn.style.display = '';
+    }
+    document.getElementById('draftBarName').textContent = cloudLockedProjectNo;
+  } else {
+    form.style.pointerEvents = '';
+    form.style.opacity = '';
+    saveBtn.style.display = '';
+    completeBtn.style.display = '';
+    pushBtn.style.display = '';
+    bar.classList.remove('cloud-edit', 'cloud-readonly');
+    if (!editingId) {
+      bar.style.display = 'none';
+    } else {
+      bar.classList.add('editing');
+      label.textContent = 'EDITING DRAFT';
+      cancelBtn.textContent = 'Discard changes';
+    }
+  }
+}
+
+document.getElementById('pushCloudBtn').addEventListener('click', doPushDraft);
+document.getElementById('pullCloudBtn').addEventListener('click', openCloudModal);
+document.getElementById('cloudModalClose').addEventListener('click', closeCloudModal);
+document.getElementById('cloudModal').addEventListener('click', (e) => {
+  if (e.target.id === 'cloudModal') closeCloudModal();
+});
+
+console.log('[v3.35] Cloud drafts module ready');
 
 /* =========================================================================
    INIT
