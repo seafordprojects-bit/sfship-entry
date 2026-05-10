@@ -144,6 +144,42 @@
     cursor: pointer; color: var(--ink-soft);
   }
 
+  /* Lock bar — shows draft lock state (Stage 2). Three visual states:
+     unlocked (default neutral), locked-by-me (rust/orange — I hold it),
+     locked-by-other (red/danger — someone else has it, form is read-only). */
+  .lock-bar {
+    padding: 10px 14px; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    background: rgba(26,26,26,0.04); border: 1px solid rgba(26,26,26,0.12);
+  }
+  .lock-bar.locked-by-me {
+    background: rgba(181,74,31,0.10); border-color: rgba(181,74,31,0.4);
+  }
+  .lock-bar.locked-by-other {
+    background: rgba(164,22,26,0.10); border-color: rgba(164,22,26,0.4);
+  }
+  .lock-bar-info {
+    display: flex; align-items: center; gap: 8px;
+    font-family: Calibri, sans-serif; font-size: 14px;
+    color: var(--ink);
+  }
+  .lock-bar-icon { font-size: 18px; }
+  .lock-bar-text { line-height: 1.3; }
+  .lock-bar-text small { display: block; font-size: 12px; color: var(--ink-soft); }
+  .lock-bar-btn {
+    font-family: Calibri, sans-serif; font-size: 13px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 7px 14px; border-radius: 3px; cursor: pointer;
+    background: var(--navy); color: var(--bone); border: 1px solid var(--navy);
+  }
+  .lock-bar-btn:hover { opacity: 0.9; }
+  .lock-bar.locked-by-other .lock-bar-btn { display: none; }
+
+  /* When locked by another user, fade the entire form area and intercept clicks
+     (handler in JS shows toast hint). */
+  .form-locked-by-other #entryForm { opacity: 0.55; pointer-events: none; }
+
   /* Section accordion */
   details.section {
     background: #fff; border: 1px solid var(--line);
@@ -811,6 +847,18 @@
         <div class="draft-bar-name" id="draftBarName">—</div>
       </div>
       <button class="draft-bar-cancel" id="cancelEditBtn">Discard changes</button>
+    </div>
+
+    <!-- Lock banner — shows lock state for the current draft (Stage 2). When
+         someone else holds the lock, the form is read-only and the banner shows
+         the holder's email + expiry. When unlocked or you hold the lock, this
+         shows the lock action button. Hidden if cloud drafts not configured. -->
+    <div class="lock-bar" id="lockBar" style="display:none">
+      <div class="lock-bar-info" id="lockBarInfo">
+        <span class="lock-bar-icon" id="lockBarIcon">🔓</span>
+        <span class="lock-bar-text" id="lockBarText">Unlocked</span>
+      </div>
+      <button type="button" class="lock-bar-btn" id="lockBarBtn">Lock for editing</button>
     </div>
 
     <form id="entryForm" autocomplete="off">
@@ -2903,6 +2951,335 @@ document.addEventListener('click', (e) => {
 });
 
 /* ─── end CLOUD DRAFTS Stage 1 ────────────────────────────────────────────── */
+
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   CLOUD DRAFTS — Stage 2: LOCKING
+   ─────────────────────────────────────────────────────────────────────────────
+   Prevents two people editing the same draft simultaneously.
+
+   Lock state lives inside the cloud-draft JSON file (no separate Drive file)
+   under three fields:
+     lockedBy        — email of the lock holder (or null)
+     lockedAt        — ISO timestamp when lock was claimed
+     lockExpiresAt   — ISO timestamp when lock auto-releases (now + 30 min)
+
+   Lifecycle:
+     - User taps "Lock for editing" → app updates cloud file with their email
+     - Auto-renew on every push: while you hold the lock, focusout pushes also
+       extend the lock another 30 min from "now"
+     - Manual release: "Unlock" button clears the fields
+     - Auto-expiry: if 30 min pass without a renewing push (e.g. phone offline),
+       the lock is considered expired and another phone can claim it
+
+     - Polling: every 30s while editing, the app pulls the latest cloud file
+       and updates the lock UI. So if assistant grabs the lock, your phone
+       notices within 30s and goes read-only.
+
+   Edge cases handled:
+     - Race condition (both phones tap Lock at the same second) → last write
+       wins. The losing phone notices on next poll and switches to "locked by
+       other" state. A few seconds of "thinking it has the lock" is acceptable.
+     - Network drop after lock claim → the lock will auto-expire after 30 min.
+     - Stale lock from offline phone → next phone to come online can claim
+       once the expiry timestamp has passed.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+const LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+const LOCK_POLL_INTERVAL_MS = 30 * 1000; // 30 seconds
+
+let _lockPollTimer = null;
+let _currentLockState = { lockedBy: null, lockedAt: null, lockExpiresAt: null };
+
+/* Read-only helper — returns a normalized snapshot of lock state for the
+   currently-editing entry, fetched fresh from the cloud file. Returns null
+   if the entry has no cloud presence yet. */
+async function lockFetchState(entryId) {
+  if (!cloudDraftsEnabled() || !entryId) return null;
+  const fileId = _cloudFileIdByEntryId[entryId];
+  if (!fileId) return null;
+  try {
+    const payload = await gFetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+    );
+    if (!payload) return null;
+    return {
+      lockedBy:      payload.lockedBy      || null,
+      lockedAt:      payload.lockedAt      || null,
+      lockExpiresAt: payload.lockExpiresAt || null,
+      payload // full payload returned for callers that want to see editor info
+    };
+  } catch (err) {
+    console.warn('[lock] fetch failed', err);
+    return null;
+  }
+}
+
+/* Returns true if the lock's expiry timestamp has passed (or is missing). */
+function lockIsExpired(lockState) {
+  if (!lockState || !lockState.lockExpiresAt) return true;
+  return new Date(lockState.lockExpiresAt).getTime() < Date.now();
+}
+
+/* Effective lock — returns null if expired or empty, otherwise the email of
+   the holder. Treats expired locks as released. */
+function lockHolderOrNull(lockState) {
+  if (!lockState || !lockState.lockedBy) return null;
+  if (lockIsExpired(lockState)) return null;
+  return lockState.lockedBy;
+}
+
+/* Claim the lock for the current user. Re-pushes the cloud-draft file with
+   updated lock fields. Last-write-wins; we re-fetch immediately after to verify
+   we actually got it (in case another phone wrote at the same time). */
+async function lockClaim(entry) {
+  if (!cloudDraftsEnabled()) return false;
+  const me = (window.userEmail || '').trim() || 'unknown';
+  const now = new Date();
+  const expires = new Date(now.getTime() + LOCK_DURATION_MS);
+
+  const payload = cloudDraftPayload(entry);
+  payload.lockedBy = me;
+  payload.lockedAt = now.toISOString();
+  payload.lockExpiresAt = expires.toISOString();
+
+  await _cloudWritePayload(entry, payload);
+
+  // Verify by re-reading. A simultaneous claim from another phone would have
+  // overwritten ours; we accept the cloud's verdict.
+  const fresh = await lockFetchState(entry.id);
+  _currentLockState = fresh || _currentLockState;
+  renderLockBar();
+  return lockHolderOrNull(_currentLockState) === me;
+}
+
+/* Release the lock the current user holds. If we don't hold it, no-op. */
+async function lockRelease(entry) {
+  if (!cloudDraftsEnabled()) return;
+  const me = (window.userEmail || '').trim() || 'unknown';
+  const fresh = await lockFetchState(entry.id);
+  if (!fresh || fresh.lockedBy !== me) {
+    _currentLockState = fresh || _currentLockState;
+    renderLockBar();
+    return;
+  }
+  const payload = fresh.payload || cloudDraftPayload(entry);
+  payload.lockedBy = null;
+  payload.lockedAt = null;
+  payload.lockExpiresAt = null;
+  await _cloudWritePayload(entry, payload);
+  _currentLockState = { lockedBy: null, lockedAt: null, lockExpiresAt: null };
+  renderLockBar();
+}
+
+/* Internal: write a fully-formed payload to the cloud-draft file (preserving
+   any caller-set fields, including the lock fields). Reuses the same upload
+   plumbing as cloudDraftPush but doesn't recompute the payload. */
+async function _cloudWritePayload(entry, payload) {
+  const folderId = cloudFolderId();
+  const name = cloudDraftFileName(entry);
+  const body = JSON.stringify(payload, null, 2);
+  let existingFileId = _cloudFileIdByEntryId[entry.id];
+  if (!existingFileId) {
+    try {
+      const q = `'${folderId}' in parents and name='${name.replace(/'/g, "\\'")}' and trashed=false`;
+      const res = await gFetch(
+        `https://www.googleapis.com/drive/v3/files?` +
+        new URLSearchParams({ q, fields: 'files(id,name)' })
+      );
+      if (res.files && res.files.length > 0) {
+        existingFileId = res.files[0].id;
+        _cloudFileIdByEntryId[entry.id] = existingFileId;
+      }
+    } catch (err) { /* fall through to create */ }
+  }
+  if (existingFileId) {
+    return gFetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+    );
+  }
+  const metadata = { name, parents: [folderId], mimeType: 'application/json' };
+  const boundary = '-------sfship_boundary_' + Date.now();
+  const multipart =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) + `\r\n` +
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
+    body + `\r\n--${boundary}--`;
+  const created = await gFetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body: multipart
+    }
+  );
+  if (created && created.id) _cloudFileIdByEntryId[entry.id] = created.id;
+  return created;
+}
+
+/* Render the lock bar based on _currentLockState and the signed-in user. */
+function renderLockBar() {
+  const bar = document.getElementById('lockBar');
+  const icon = document.getElementById('lockBarIcon');
+  const text = document.getElementById('lockBarText');
+  const btn  = document.getElementById('lockBarBtn');
+  if (!bar || !icon || !text || !btn) return;
+
+  if (!cloudDraftsEnabled() || !editingId) {
+    bar.style.display = 'none';
+    document.body.classList.remove('form-locked-by-other');
+    return;
+  }
+  bar.style.display = 'flex';
+
+  const me = (window.userEmail || '').trim() || 'unknown';
+  const holder = lockHolderOrNull(_currentLockState);
+
+  bar.classList.remove('locked-by-me', 'locked-by-other');
+  document.body.classList.remove('form-locked-by-other');
+
+  if (!holder) {
+    icon.textContent = '🔓';
+    text.innerHTML = `Unlocked <small>Tap "Lock for editing" before making changes.</small>`;
+    btn.textContent = 'Lock for editing';
+    btn.style.display = '';
+  } else if (holder === me) {
+    bar.classList.add('locked-by-me');
+    icon.textContent = '🔒';
+    const expires = new Date(_currentLockState.lockExpiresAt);
+    text.innerHTML = `Locked by you <small>Auto-expires ${expires.toLocaleTimeString()}</small>`;
+    btn.textContent = 'Unlock';
+    btn.style.display = '';
+  } else {
+    bar.classList.add('locked-by-other');
+    document.body.classList.add('form-locked-by-other');
+    icon.textContent = '🔒';
+    const expires = new Date(_currentLockState.lockExpiresAt);
+    text.innerHTML = `Locked by ${escapeHtml(holder)} <small>Auto-expires ${expires.toLocaleTimeString()}. Form is read-only.</small>`;
+    btn.style.display = 'none';
+  }
+}
+
+/* Lock button click handler. Toggles claim/release based on current state. */
+document.addEventListener('click', async (e) => {
+  if (e.target.id !== 'lockBarBtn') return;
+  if (!editingId) return;
+  const entry = await dbGet(editingId);
+  if (!entry) return;
+  const me = (window.userEmail || '').trim() || 'unknown';
+  const holder = lockHolderOrNull(_currentLockState);
+  if (holder === me) {
+    await lockRelease(entry);
+    toast('Lock released', 'info');
+  } else if (!holder) {
+    const ok = await lockClaim(entry);
+    toast(ok ? 'Locked for editing' : 'Lock claim failed (someone else got it)', ok ? 'success' : 'error');
+  } else {
+    toast(`Locked by ${holder}`, 'error');
+  }
+});
+
+/* Polling: every 30s while editing, refresh the lock state from cloud. Stops
+   when the user leaves the entry view or there's no editingId. */
+function lockStartPolling() {
+  if (_lockPollTimer) clearInterval(_lockPollTimer);
+  _lockPollTimer = setInterval(async () => {
+    if (!editingId || !cloudDraftsEnabled()) return;
+    const fresh = await lockFetchState(editingId);
+    if (fresh) {
+      _currentLockState = fresh;
+      renderLockBar();
+    }
+  }, LOCK_POLL_INTERVAL_MS);
+}
+function lockStopPolling() {
+  if (_lockPollTimer) clearInterval(_lockPollTimer);
+  _lockPollTimer = null;
+}
+
+/* Hook polling to view changes — start when entering entry view, stop on leaving. */
+document.addEventListener('click', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  if (tab.dataset.view === 'entry') {
+    setTimeout(() => { if (editingId) refreshLockAndRender(); }, 50);
+    lockStartPolling();
+  } else {
+    lockStopPolling();
+  }
+});
+
+/* Pull lock state once on demand (e.g. right after pulling a draft from cloud). */
+async function refreshLockAndRender() {
+  if (!editingId || !cloudDraftsEnabled()) {
+    _currentLockState = { lockedBy: null, lockedAt: null, lockExpiresAt: null };
+    renderLockBar();
+    return;
+  }
+  const fresh = await lockFetchState(editingId);
+  if (fresh) {
+    _currentLockState = fresh;
+    renderLockBar();
+  }
+}
+
+/* When the user clicks anywhere on the form while it's locked by another, show
+   a hint toast. Capture phase so we run before any native input handlers. */
+document.addEventListener('click', (e) => {
+  if (!document.body.classList.contains('form-locked-by-other')) return;
+  if (!e.target.closest('#entryForm')) return;
+  toast('Form is locked by another editor. Wait or coordinate handoff.', 'info');
+}, true);
+
+/* Hook into the cloud-draft push to extend our lock's expiry. If we hold the
+   lock and a push happens (typing a field that triggers focusout), bump
+   lockExpiresAt 30 min into the future so the lock doesn't auto-release while
+   we're actively working. */
+const _origCloudDraftPush = cloudDraftPush;
+cloudDraftPush = async function(entry) {
+  // If we hold the lock, mutate the payload to renew expiry. Otherwise call
+  // through normally.
+  if (!cloudDraftsEnabled()) return _origCloudDraftPush(entry);
+  const me = (window.userEmail || '').trim() || 'unknown';
+  const holder = lockHolderOrNull(_currentLockState);
+  if (holder === me) {
+    const payload = cloudDraftPayload(entry);
+    const newExpiry = new Date(Date.now() + LOCK_DURATION_MS);
+    payload.lockedBy = me;
+    payload.lockedAt = _currentLockState.lockedAt || new Date().toISOString();
+    payload.lockExpiresAt = newExpiry.toISOString();
+    _currentLockState.lockExpiresAt = newExpiry.toISOString();
+    await _cloudWritePayload(entry, payload);
+    renderLockBar();
+    return { id: _cloudFileIdByEntryId[entry.id] };
+  }
+  return _origCloudDraftPush(entry);
+};
+
+/* When the cloud draft is pulled, refresh lock immediately. */
+const _origCloudDraftPull = cloudDraftPull;
+cloudDraftPull = async function(payload) {
+  const result = await _origCloudDraftPull(payload);
+  // Lock state is in the same payload we just pulled — adopt it.
+  _currentLockState = {
+    lockedBy:      payload.lockedBy      || null,
+    lockedAt:      payload.lockedAt      || null,
+    lockExpiresAt: payload.lockExpiresAt || null
+  };
+  renderLockBar();
+  return result;
+};
+
+/* When clearForm() runs (cancel edit, complete entry), reset lock state UI. */
+const _origClearForm = clearForm;
+clearForm = function() {
+  _origClearForm();
+  _currentLockState = { lockedBy: null, lockedAt: null, lockExpiresAt: null };
+  renderLockBar();
+};
+
+/* ─── end CLOUD DRAFTS Stage 2 ────────────────────────────────────────────── */
 
 /* When the user picks a Date Requested, auto-populate the two derived fields:
    - "Ordinal Date" → "2nd", "27th", "1st", etc.
