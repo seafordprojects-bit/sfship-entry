@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
-<title>SF Ship · Vessel Data Entry (v3.36)</title>
+<title>SF Ship · Vessel Data Entry (v3.35)</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -850,6 +850,14 @@
 
   <!-- ENTRY VIEW -->
   <section class="view active" id="view-entry">
+    <div class="auth-card" id="authCard">
+      <h3>Google Drive</h3>
+      <p>Sign in once. Completed entries auto-upload when online.</p>
+      <div class="auth-status signed-out" id="authStatus">● Not signed in</div>
+      <button class="btn btn-primary" id="signInBtn" style="width:100%">Sign in with Google</button>
+      <button class="btn btn-secondary" id="signOutBtn" style="width:100%; display:none">Sign out</button>
+    </div>
+
     <div class="draft-bar" id="draftBar" style="display:none">
       <div>
         <div class="draft-bar-label" id="draftBarLabel">EDITING DRAFT</div>
