@@ -2722,7 +2722,9 @@ async function cloudDraftsList() {
       q,
       orderBy: 'modifiedTime desc',
       pageSize: '50',
-      fields: 'files(id,name,modifiedTime)'
+      fields: 'files(id,name,modifiedTime)',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true'
     });
   const res = await gFetch(url);
   const items = (res.files || []);
@@ -2731,7 +2733,7 @@ async function cloudDraftsList() {
   for (const f of items) {
     try {
       const content = await gFetch(
-        `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`
+        `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&supportsAllDrives=true`
       );
       if (content && content.id) {
         _cloudFileIdByEntryId[content.id] = f.id;
@@ -2761,7 +2763,12 @@ async function cloudDraftPush(entry) {
     try {
       const res = await gFetch(
         `https://www.googleapis.com/drive/v3/files?` +
-        new URLSearchParams({ q, fields: 'files(id,name)' })
+        new URLSearchParams({
+          q,
+          fields: 'files(id,name)',
+          supportsAllDrives: 'true',
+          includeItemsFromAllDrives: 'true'
+        })
       );
       if (res.files && res.files.length > 0) {
         existingFileId = res.files[0].id;
@@ -2776,7 +2783,7 @@ async function cloudDraftPush(entry) {
     // Update existing.
     try {
       const upd = await gFetch(
-        `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
+        `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media&supportsAllDrives=true`,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
       );
       return upd;
@@ -2801,7 +2808,7 @@ async function cloudDraftPush(entry) {
     // The two-step approach uses pure JSON for both calls.
     const metadata = { name, parents: [folderId], mimeType: 'application/json' };
     const created = await gFetch(
-      `https://www.googleapis.com/drive/v3/files?fields=id,name`,
+      `https://www.googleapis.com/drive/v3/files?fields=id,name&supportsAllDrives=true`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2813,7 +2820,7 @@ async function cloudDraftPush(entry) {
     }
     // Now upload the content.
     await gFetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media`,
+      `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media&supportsAllDrives=true`,
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
     );
     _cloudFileIdByEntryId[entry.id] = created.id;
@@ -3040,7 +3047,7 @@ async function lockFetchState(entryId) {
   if (!fileId) return null;
   try {
     const payload = await gFetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`
     );
     if (!payload) return null;
     return {
@@ -3125,7 +3132,10 @@ async function _cloudWritePayload(entry, payload) {
       const q = `'${folderId}' in parents and name='${name.replace(/'/g, "\\'")}' and trashed=false`;
       const res = await gFetch(
         `https://www.googleapis.com/drive/v3/files?` +
-        new URLSearchParams({ q, fields: 'files(id,name)' })
+        new URLSearchParams({
+          q, fields: 'files(id,name)',
+          supportsAllDrives: 'true', includeItemsFromAllDrives: 'true'
+        })
       );
       if (res.files && res.files.length > 0) {
         existingFileId = res.files[0].id;
@@ -3134,15 +3144,24 @@ async function _cloudWritePayload(entry, payload) {
     } catch (err) { /* fall through to create */ }
   }
   if (existingFileId) {
-    return gFetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
-    );
+    try {
+      return await gFetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media&supportsAllDrives=true`,
+        { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
+      );
+    } catch (err) {
+      if (String(err).indexOf('HTTP 404') >= 0) {
+        delete _cloudFileIdByEntryId[entry.id];
+        existingFileId = null;
+      } else {
+        throw err;
+      }
+    }
   }
   // Two-step create: metadata first, then content. See cloudDraftPush for why.
   const metadata = { name, parents: [folderId], mimeType: 'application/json' };
   const created = await gFetch(
-    `https://www.googleapis.com/drive/v3/files?fields=id,name`,
+    `https://www.googleapis.com/drive/v3/files?fields=id,name&supportsAllDrives=true`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3153,7 +3172,7 @@ async function _cloudWritePayload(entry, payload) {
     throw new Error('Cloud draft create failed: no file ID returned');
   }
   await gFetch(
-    `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media`,
+    `https://www.googleapis.com/upload/drive/v3/files/${created.id}?uploadType=media&supportsAllDrives=true`,
     { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }
   );
   _cloudFileIdByEntryId[entry.id] = created.id;
