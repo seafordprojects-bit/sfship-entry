@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
-<title>SF Ship · Vessel Data Entry (v3.35)</title>
+<title>SF Ship · Vessel Data Entry (v3.36)</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -813,6 +813,78 @@
   .cloud-item-actions button.danger {
     color: var(--red); border-color: rgba(164,22,26,0.3);
   }
+  /* ════════ v3.36 inline cloud drafts ════════ */
+  .section-heading {
+    font-family: Calibri, sans-serif;
+    font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin: 18px 0 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .section-heading:first-of-type { margin-top: 4px; }
+  .small-btn {
+    font-family: Calibri, sans-serif;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 5px 10px; cursor: pointer;
+    background: var(--bone); border: 1px solid var(--line);
+    color: var(--ink-soft); border-radius: 2px;
+  }
+  .small-btn:hover { background: var(--paper); }
+  .list-item.cloud { border-left-color: var(--navy); }
+  .list-item.cloud.locked { border-left-color: var(--red); opacity: 0.85; }
+
+  /* ════════ v3.36 PIN protection ════════ */
+  .setting-lock-row {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: var(--bone);
+    border: 1px dashed var(--line);
+    border-radius: 2px;
+    font-size: 14px; color: var(--ink-soft);
+  }
+  .setting-lock-row .lock-status { flex: 1; }
+  .config-locked input[type="text"] {
+    background: rgba(26,26,26,0.04) !important;
+    color: var(--ink-soft) !important;
+    cursor: not-allowed;
+  }
+  #pinModal {
+    display: none; position: fixed; inset: 0; z-index: 400;
+    background: rgba(10,37,64,0.6);
+    padding: 20px; overflow-y: auto;
+  }
+  #pinModal .pin-inner {
+    background: var(--paper); max-width: 360px; margin: 60px auto 0;
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+    padding: 20px;
+  }
+  #pinModal h3 {
+    font-family: Calibri, sans-serif; font-size: 18px;
+    font-weight: 600; margin-bottom: 6px;
+  }
+  #pinModal p { font-size: 14px; color: var(--ink-soft); margin-bottom: 12px; }
+  #pinModal input {
+    width: 100%; padding: 12px;
+    border: 1px solid var(--line);
+    font-family: monospace; font-size: 24px;
+    letter-spacing: 6px;
+    text-align: center;
+    margin-bottom: 12px;
+    background: #fff;
+  }
+  #pinModal input:focus {
+    outline: none; border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(10,37,64,0.08);
+  }
+  #pinModal .pin-actions {
+    display: flex; gap: 8px;
+  }
+  #pinModal .pin-actions .btn { flex: 1; }
+
   .cloud-badge {
     font-family: Calibri, sans-serif; font-size: 11px;
     letter-spacing: 1px; text-transform: uppercase;
@@ -830,7 +902,7 @@
       <div class="logo-mark">SF</div>
       <div class="logo-text">
         Vessel Data Entry
-        <small>SF SHIP BUILDING & REPAIR · v3.35</small>
+        <small>SF SHIP BUILDING & REPAIR · v3.36</small>
       </div>
     </div>
     <div class="status-pill" id="netStatus">
@@ -850,14 +922,6 @@
 
   <!-- ENTRY VIEW -->
   <section class="view active" id="view-entry">
-    <div class="auth-card" id="authCard">
-      <h3>Google Drive</h3>
-      <p>Sign in once. Completed entries auto-upload when online.</p>
-      <div class="auth-status signed-out" id="authStatus">● Not signed in</div>
-      <button class="btn btn-primary" id="signInBtn" style="width:100%">Sign in with Google</button>
-      <button class="btn btn-secondary" id="signOutBtn" style="width:100%; display:none">Sign out</button>
-    </div>
-
     <div class="draft-bar" id="draftBar" style="display:none">
       <div>
         <div class="draft-bar-label" id="draftBarLabel">EDITING DRAFT</div>
@@ -871,15 +935,24 @@
     </form>
   </section>
 
-  <!-- DRAFTS VIEW -->
+  <!-- DRAFTS VIEW (v3.36 inline cloud drafts) -->
   <section class="view" id="view-drafts">
     <div class="helper">
       Drafts are works-in-progress. They <strong>won't upload</strong> until you mark them complete. Tap a draft to keep editing it.
     </div>
-    <div style="display:flex; gap:8px; margin-bottom:14px">
-      <button class="btn btn-primary" id="pullCloudBtn">☁️ Pull from Cloud</button>
+    <div class="section-heading">
+      <span>Local Drafts</span>
     </div>
     <div id="draftsList"></div>
+    <div class="section-heading">
+      <span>☁️ Cloud Drafts</span>
+      <button class="small-btn" id="cloudRefreshBtn">↻ Refresh</button>
+    </div>
+    <div id="cloudDraftsList">
+      <div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">
+        Sign in to Google (Setup tab) to see cloud drafts.
+      </div>
+    </div>
   </section>
 
   <!-- QUEUE VIEW -->
@@ -894,30 +967,50 @@
     <div id="queueList"></div>
   </section>
 
-  <!-- SETTINGS VIEW -->
+  <!-- SETTINGS VIEW (v3.36 PIN-protected + sign-in here) -->
   <section class="view" id="view-settings">
-    <div class="setting-group">
+
+    <!-- Google sign-in moved here from Entry view in v3.36 -->
+    <div class="auth-card" id="authCard">
+      <h3>Google Drive</h3>
+      <p>Sign in once. Completed entries auto-upload when online.</p>
+      <div class="auth-status signed-out" id="authStatus">● Not signed in</div>
+      <button class="btn btn-primary" id="signInBtn" style="width:100%">Sign in with Google</button>
+      <button class="btn btn-secondary" id="signOutBtn" style="width:100%; display:none">Sign out</button>
+    </div>
+
+    <div class="setting-group" id="apiConfigGroup">
       <h4>Google API Configuration</h4>
       <p>Paste your OAuth Client ID and the master template Sheet ID.</p>
+      <div class="setting-lock-row">
+        <span class="lock-status" id="apiLockStatus">🔒 Locked — tap unlock to edit</span>
+        <button type="button" class="small-btn" id="apiLockBtn">🔒 Unlock</button>
+      </div>
       <div class="field">
         <label>OAuth Client ID</label>
-        <input type="text" id="cfgClientId" placeholder="123-xxx.apps.googleusercontent.com" />
+        <input type="text" id="cfgClientId" placeholder="123-xxx.apps.googleusercontent.com" readonly />
       </div>
       <div class="field">
         <label>Master Template Sheet ID</label>
-        <input type="text" id="cfgTemplateId" placeholder="1Z3bfRGODoU1Unx4AhpRtxFQYGMi1KkoZ_FA8ZvDqjNc" />
+        <input type="text" id="cfgTemplateId" placeholder="1Z3bfRGODoU1Unx4AhpRtxFQYGMi1KkoZ_FA8ZvDqjNc" readonly />
       </div>
       <div class="field">
         <label>Drive Folder ID <span class="opt">where new sheets are saved</span></label>
-        <input type="text" id="cfgFolderId" placeholder="optional · leave blank for Drive root" />
+        <input type="text" id="cfgFolderId" placeholder="optional · leave blank for Drive root" readonly />
       </div>
       <button class="btn btn-primary" id="saveCfgBtn" style="width:100%">Save Configuration</button>
     </div>
 
     <div class="setting-group">
+      <h4>Security PIN</h4>
+      <p style="font-size:14px; color: var(--ink-soft); margin-bottom: 8px">PIN protects API configuration and Wipe All Data. <strong>Default PIN is 123456</strong> — change it now if you haven't.</p>
+      <button class="btn btn-secondary" id="changePinBtn" style="width:100%">Change PIN</button>
+    </div>
+
+    <div class="setting-group">
       <h4>About this app</h4>
       <p>Built for offline vessel data entry across Ships Data, Rudder, Tailshaft, Chain Calibration, Test Report, Propeller, and Work Done. Saves locally on this phone, syncs to your Drive when online.</p>
-      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.35 — cloud drafts for two-device collaboration</p>
+      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.36 — inline cloud drafts, secure setup</p>
     </div>
 
     <div class="setting-group">
@@ -3796,8 +3889,7 @@ function applyCloudLockUI() {
       label.textContent = '🔒 READ-ONLY (LOCKED BY ANOTHER USER)';
       cancelBtn.textContent = 'Close';
       form.style.pointerEvents = 'none';
-      form.style.opacity = '0.7';
-saveBtn.style.display = 'none';
+      form.style.opacity = '0.7';      saveBtn.style.display = 'none';
       completeBtn.style.display = 'none';
       pushBtn.style.display = 'none';
     } else {
@@ -3830,13 +3922,307 @@ saveBtn.style.display = 'none';
 }
 
 document.getElementById('pushCloudBtn').addEventListener('click', doPushDraft);
-document.getElementById('pullCloudBtn').addEventListener('click', openCloudModal);
 document.getElementById('cloudModalClose').addEventListener('click', closeCloudModal);
 document.getElementById('cloudModal').addEventListener('click', (e) => {
   if (e.target.id === 'cloudModal') closeCloudModal();
 });
 
-console.log('[v3.35] Cloud drafts module ready');
+console.log('[v3.36] Cloud drafts + PIN protection ready');
+
+/* =========================================================================
+   v3.36 — PIN PROTECTION FOR API CONFIG + WIPE
+   ========================================================================= */
+const PIN_KEY = 'sfship_pin_v1';
+const DEFAULT_PIN = '123456';
+let apiUnlocked = false;
+
+function getStoredPin() {
+  return localStorage.getItem(PIN_KEY) || DEFAULT_PIN;
+}
+function setStoredPin(pin) {
+  localStorage.setItem(PIN_KEY, pin);
+}
+
+function promptPin(opts) {
+  // opts: { title, desc, onSuccess, onCancel }
+  return new Promise((resolve) => {
+    const modal = document.getElementById('pinModal');
+    const input = document.getElementById('pinInput');
+    const errEl = document.getElementById('pinModalError');
+    const titleEl = document.getElementById('pinModalTitle');
+    const descEl = document.getElementById('pinModalDesc');
+    const okBtn = document.getElementById('pinOkBtn');
+    const cancelBtn = document.getElementById('pinCancelBtn');
+
+    titleEl.textContent = opts.title || 'Enter PIN';
+    descEl.textContent = opts.desc || 'Enter the 6-digit PIN to continue.';
+    input.value = '';
+    errEl.style.display = 'none';
+    modal.style.display = 'block';
+    setTimeout(() => input.focus(), 100);
+
+    const cleanup = () => {
+      modal.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+    };
+    const onOk = () => {
+      const entered = (input.value || '').trim();
+      const stored = getStoredPin();
+      if (entered === stored) {
+        cleanup();
+        resolve(true);
+      } else {
+        errEl.textContent = 'Wrong PIN. Try again.';
+        errEl.style.display = 'block';
+        input.value = '';
+        input.focus();
+      }
+    };
+    const onCancel = () => { cleanup(); resolve(false); };
+    const onKey = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+      else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+    };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+  });
+}
+
+function applyApiLockState() {
+  const group = document.getElementById('apiConfigGroup');
+  const btn = document.getElementById('apiLockBtn');
+  const status = document.getElementById('apiLockStatus');
+  const inputs = ['cfgClientId', 'cfgTemplateId', 'cfgFolderId'];
+  if (apiUnlocked) {
+    group.classList.remove('config-locked');
+    inputs.forEach(id => { const el = document.getElementById(id); if (el) el.removeAttribute('readonly'); });
+    btn.textContent = '🔓 Unlocked';
+    status.textContent = '🔓 Unlocked — fields editable (session only)';
+  } else {
+    group.classList.add('config-locked');
+    inputs.forEach(id => { const el = document.getElementById(id); if (el) el.setAttribute('readonly', 'readonly'); });
+    btn.textContent = '🔒 Unlock';
+    status.textContent = '🔒 Locked — tap unlock to edit';
+  }
+}
+
+// PIN: Unlock API config
+const apiLockBtn = document.getElementById('apiLockBtn');
+if (apiLockBtn) {
+  apiLockBtn.addEventListener('click', async () => {
+    if (apiUnlocked) {
+      // Toggle back to locked
+      apiUnlocked = false;
+      applyApiLockState();
+      toast('Configuration locked', 'info');
+      return;
+    }
+    const ok = await promptPin({
+      title: 'Unlock API Configuration',
+      desc: 'Enter PIN to edit Google API settings.'
+    });
+    if (ok) {
+      apiUnlocked = true;
+      applyApiLockState();
+      toast('Unlocked', 'success');
+    }
+  });
+}
+
+// PIN: Save Configuration (capture phase, blocks if locked)
+const saveCfgBtnEl = document.getElementById('saveCfgBtn');
+if (saveCfgBtnEl) {
+  saveCfgBtnEl.addEventListener('click', (e) => {
+    if (!apiUnlocked) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      toast('Tap 🔒 Unlock first', 'error');
+    }
+  }, true);
+}
+
+// PIN: Wipe button — always require PIN (capture phase)
+const wipeBtnEl = document.getElementById('wipeBtn');
+if (wipeBtnEl) {
+  wipeBtnEl.addEventListener('click', async (e) => {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    const ok = await promptPin({
+      title: 'Confirm Wipe',
+      desc: 'Enter PIN to wipe all local data. This cannot be undone.'
+    });
+    if (!ok) return;
+    if (!confirm('Wipe ALL local entries (drafts, pending, synced) AND autocomplete history? Cannot be undone.')) return;
+    const all = await dbAll();
+    for (const en of all) await dbDelete(en.id);
+    await recallClearAll();
+    renderDrafts(); renderQueue(); renderSettings(); refreshBadges();
+    toast('Local data wiped');
+  }, true);
+}
+
+// PIN: Change PIN flow
+const changePinBtn = document.getElementById('changePinBtn');
+if (changePinBtn) {
+  changePinBtn.addEventListener('click', async () => {
+    const ok = await promptPin({
+      title: 'Verify Current PIN',
+      desc: 'Enter current PIN to change it.'
+    });
+    if (!ok) return;
+    // Now ask for new PIN
+    const newPin = await new Promise((resolve) => {
+      const modal = document.getElementById('pinModal');
+      const input = document.getElementById('pinInput');
+      const errEl = document.getElementById('pinModalError');
+      const titleEl = document.getElementById('pinModalTitle');
+      const descEl = document.getElementById('pinModalDesc');
+      const okBtn = document.getElementById('pinOkBtn');
+      const cancelBtn = document.getElementById('pinCancelBtn');
+
+      titleEl.textContent = 'New PIN';
+      descEl.textContent = 'Enter a new 6-digit PIN.';
+      input.value = '';
+      errEl.style.display = 'none';
+      modal.style.display = 'block';
+      setTimeout(() => input.focus(), 100);
+
+      const cleanup = () => {
+        modal.style.display = 'none';
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        input.removeEventListener('keydown', onKey);
+      };
+      const onOk = () => {
+        const v = (input.value || '').trim();
+        if (!/^\d{6}$/.test(v)) {
+          errEl.textContent = 'PIN must be exactly 6 digits.';
+          errEl.style.display = 'block';
+          input.value = '';
+          input.focus();
+          return;
+        }
+        cleanup();
+        resolve(v);
+      };
+      const onCancel = () => { cleanup(); resolve(null); };
+      const onKey = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+        else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+      };
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      input.addEventListener('keydown', onKey);
+    });
+    if (newPin) {
+      setStoredPin(newPin);
+      toast('PIN changed successfully', 'success');
+    }
+  });
+}
+
+// Wrap renderSettings to re-apply lock state every time Setup view opens
+const _origRenderSettings = renderSettings;
+renderSettings = async function() {
+  await _origRenderSettings.apply(this, arguments);
+  applyApiLockState();
+};
+
+/* =========================================================================
+   v3.36 — INLINE CLOUD DRAFTS ON DRAFTS TAB
+   ========================================================================= */
+async function renderCloudDraftsList() {
+  const wrap = document.getElementById('cloudDraftsList');
+  if (!wrap) return;
+
+  if (!isOnline) {
+    wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">Offline — connect to internet to see cloud drafts.</div>';
+    return;
+  }
+  if (!accessToken) {
+    wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">Sign in to Google (Setup tab) to see cloud drafts.</div>';
+    return;
+  }
+
+  wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">Loading cloud drafts...</div>';
+
+  try {
+    const result = await cloudCall('listDrafts', {});
+    if (!result.ok) throw new Error(result.error || 'Failed to list drafts');
+    const drafts = result.drafts || [];
+    if (drafts.length === 0) {
+      wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">No cloud drafts yet.<br/><small>Fill in a form on Entry tab and tap ☁️ Push to save to cloud.</small></div>';
+      return;
+    }
+    const myEmail = await getUserEmail();
+    wrap.innerHTML = drafts.map(d => {
+      const lockedByOther = d.locked && d.lockedBy !== myEmail;
+      const lockedByMe = d.locked && d.lockedBy === myEmail;
+      const lastMod = d.lastModified ? new Date(d.lastModified).toLocaleString() : '—';
+      const editor = d.lastEditor || '—';
+      let badgeHtml = '';
+      let actionBtns = '';
+      if (lockedByOther) {
+        badgeHtml = '<span class="list-status error">🔒 Locked</span>';
+        actionBtns = `<button class="cloud-pull-readonly" data-proj="${escapeHtml(d.projectNo)}">View Read-Only</button>`;
+      } else if (lockedByMe) {
+        badgeHtml = '<span class="list-status synced">🔓 Yours</span>';
+        actionBtns = `<button class="primary cloud-pull" data-proj="${escapeHtml(d.projectNo)}">Continue Editing</button>`;
+      } else {
+        badgeHtml = '<span class="list-status pending">Cloud</span>';
+        actionBtns = `<button class="primary cloud-pull" data-proj="${escapeHtml(d.projectNo)}">Pull & Edit</button>`;
+      }
+      const lockMeta = lockedByOther
+        ? `<div style="font-size:13px; color: var(--red); margin-top:3px;">🔒 Being edited by ${escapeHtml(d.lockedBy)}</div>`
+        : '';
+      return `<div class="list-item cloud${lockedByOther ? ' locked' : ''}">
+        <div class="list-head">
+          <span class="list-proj">${escapeHtml(d.projectNo)}</span>
+          ${badgeHtml}
+        </div>
+        <div class="list-vessel">${escapeHtml(d.vesselName || 'Untitled')}</div>
+        <div class="list-meta">Last edit: ${escapeHtml(editor)} · ${lastMod}</div>
+        ${lockMeta}
+        <div class="list-actions">
+          ${actionBtns}
+          <button class="danger cloud-delete" data-proj="${escapeHtml(d.projectNo)}" data-vessel="${escapeHtml(d.vesselName || '')}">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    wrap.querySelectorAll('.cloud-pull').forEach(b => {
+      b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'edit'));
+    });
+    wrap.querySelectorAll('.cloud-pull-readonly').forEach(b => {
+      b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'readonly'));
+    });
+    wrap.querySelectorAll('.cloud-delete').forEach(b => {
+      b.addEventListener('click', async () => {
+        await doDeleteCloudDraft(b.dataset.proj, b.dataset.vessel);
+        renderCloudDraftsList();
+      });
+    });
+  } catch (err) {
+    wrap.innerHTML = `<div style="text-align:center; color:var(--red); padding:20px 10px; font-size:14px;">Error: ${escapeHtml(err.message || String(err))}</div>`;
+  }
+}
+
+// Wrap setView to auto-load cloud drafts when Drafts tab opens
+const _origSetView = setView;
+setView = function(name) {
+  _origSetView.apply(this, arguments);
+  if (name === 'drafts') {
+    renderCloudDraftsList();
+  }
+};
+
+const cloudRefreshBtn = document.getElementById('cloudRefreshBtn');
+if (cloudRefreshBtn) {
+  cloudRefreshBtn.addEventListener('click', renderCloudDraftsList);
+}
 
 /* =========================================================================
    INIT
@@ -3852,9 +4238,24 @@ for (const sec of SCHEMA) {
 updateNetStatus();
 refreshBadges();
 renderAuth();
+applyApiLockState();
 window.addEventListener('load', initGoogle);
 setInterval(() => { if (isOnline && accessToken) trySync(); }, 60000);
 </script>
+
+<!-- v3.36 PIN modal -->
+<div id="pinModal">
+  <div class="pin-inner">
+    <h3 id="pinModalTitle">Enter PIN</h3>
+    <p id="pinModalDesc">Enter the 6-digit PIN to continue.</p>
+    <input type="tel" id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" />
+    <div id="pinModalError" style="display:none; color:var(--red); font-size:13px; margin-bottom:8px;"></div>
+    <div class="pin-actions">
+      <button type="button" class="btn btn-secondary" id="pinCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="pinOkBtn">OK</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
