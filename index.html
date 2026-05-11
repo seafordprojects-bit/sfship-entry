@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
-<title>SF Ship · Vessel Data Entry (v3.36)</title>
+<title>SF Ship · Vessel Data Entry (v3.40)</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -582,7 +582,8 @@
   .work-item-location {
     margin-top: 6px;
   }
-  .work-item-location input {
+  .work-item-location input,
+  .work-item-location select {
     width: 100%; padding: 5px 8px;
     border: 1px solid var(--line); background: var(--paper);
     font-size: 15px; border-radius: 2px;
@@ -813,6 +814,75 @@
   .cloud-item-actions button.danger {
     color: var(--red); border-color: rgba(164,22,26,0.3);
   }
+  /* ════════ v3.38 vessel list ════════ */
+  .vessel-list-wrap { margin-top: 4px; }
+  .vessel-list-row {
+    display: flex; gap: 10px;
+    margin-bottom: 12px; padding: 10px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--rust);
+  }
+  .vessel-list-row-1 {
+    background: rgba(45,106,79,0.04);
+    border-left-color: var(--green);
+  }
+  .vessel-list-hint {
+    font-family: Calibri, sans-serif; font-style: italic;
+    font-size: 12px; color: var(--green);
+    margin-bottom: 6px; letter-spacing: 0.3px;
+  }
+  /* v3.40 add/remove vessel row controls */
+  .vessel-list-row { position: relative; }
+  .vessel-list-remove {
+    position: absolute; top: 6px; right: 6px;
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    font-family: Calibri, sans-serif;
+    font-size: 18px; font-weight: 700;
+    background: transparent;
+    color: var(--red);
+    border: 1px solid rgba(164,22,26,0.3);
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .vessel-list-remove:hover {
+    background: rgba(164,22,26,0.08);
+  }
+  .vessel-list-add {
+    width: 100%;
+    margin-top: 6px;
+    padding: 12px;
+    font-family: Calibri, sans-serif;
+    font-size: 14px; font-weight: 700; letter-spacing: 1.2px;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--navy);
+    border: 2px dashed var(--navy);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  .vessel-list-add:hover {
+    background: rgba(10,37,64,0.04);
+  }
+  .vessel-list-add:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .vessel-list-num {
+    flex-shrink: 0; width: 28px; height: 28px;
+    display: grid; place-items: center;
+    background: var(--navy); color: var(--bone);
+    font-family: Calibri, sans-serif;
+    font-size: 14px; font-weight: 700;
+    border-radius: 2px;
+  }
+  .vessel-list-fields { flex: 1; }
+  .vessel-list-fields .field { margin-bottom: 8px; }
+  .vessel-list-fields .field:last-child { margin-bottom: 0; }
+  .vessel-list-fields .field-row .field { margin-bottom: 0; }
+
   /* ════════ v3.36 inline cloud drafts ════════ */
   .section-heading {
     font-family: Calibri, sans-serif;
@@ -902,7 +972,7 @@
       <div class="logo-mark">SF</div>
       <div class="logo-text">
         Vessel Data Entry
-        <small>SF SHIP BUILDING & REPAIR · v3.36</small>
+        <small>SF SHIP BUILDING & REPAIR · v3.40</small>
       </div>
     </div>
     <div class="status-pill" id="netStatus">
@@ -1010,13 +1080,7 @@
     <div class="setting-group">
       <h4>About this app</h4>
       <p>Built for offline vessel data entry across Ships Data, Rudder, Tailshaft, Chain Calibration, Test Report, Propeller, and Work Done. Saves locally on this phone, syncs to your Drive when online.</p>
-      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.36 — inline cloud drafts, secure setup</p>
-    </div>
-
-    <div class="setting-group">
-      <h4>Google Account</h4>
-      <p style="font-size:14px; color: var(--ink-soft); margin-bottom: 8px">Sign out and back in if you change your master template or run into permission errors.</p>
-      <button class="btn btn-secondary" id="setupSignOutBtn" style="width:100%">Sign out of Google</button>
+      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.40 — List of Vessel: start with 3 rows, add more with + button</p>
     </div>
 
     <div class="setting-group">
@@ -1074,7 +1138,7 @@ const SCHEMA = [
       { id: 'breadth',           label: 'Breadth',               cell: 'B19', type: 'text', meterFormat: true },
       { id: 'depth',             label: 'Depth',                 cell: 'B20', type: 'text', meterFormat: true },
       { id: 'draft',             label: 'Draft',                 cell: 'B21', type: 'text', meterFormat: true },
-      { id: 'grt',               label: 'GRT',                   cell: 'B22', type: 'text' },
+      { id: 'grt',               label: 'GRT',                   cell: 'B22', type: 'text', decimal2: true },
       { id: 'vesselType',        label: 'Type of Vessel',        cell: 'B23', type: 'text' },
       { id: 'transmittedBy',     label: 'Transmitted By',        cell: 'B25', type: 'text', placeholder: 'Loulla K. Lauron' },
       { id: 'position',          label: 'Position',              cell: 'B26', type: 'text', placeholder: 'Document Controller 1' }
@@ -1364,21 +1428,49 @@ const SCHEMA = [
         sheet: 'WORK DONE 2',
         headerRow: 24,
         items: [
-          { id: 'w7_crop',  label: 'Crop and replace deteriorated plates',  checkCell: 'A25_check', locationCell: 'P25' }
+          { id: 'w7_fpt',         label: 'Crop out and replate F.P.T.',                                checkCell: 'A25_check',  locationCell: 'P25' },
+          { id: 'w7_bosun',       label: 'Crop out and replate Bosun store side shell',                checkCell: 'A26_check',  locationCell: 'P26' },
+          { id: 'w7_bt1',         label: 'Crop out and replate ballast tank no. 1',                    checkCell: 'A27_check',  locationCell: 'P27' },
+          { id: 'w7_bt2',         label: 'Crop out and replate ballast tank no. 2',                    checkCell: 'A28_check',  locationCell: 'P28' },
+          { id: 'w7_bt3',         label: 'Crop out and replate ballast tank no. 3',                    checkCell: 'A29_check',  locationCell: 'P29' },
+          { id: 'w7_bt4',         label: 'Crop out and replate ballast tank no. 4',                    checkCell: 'A30_check',  locationCell: 'P30' },
+          { id: 'w7_bt5',         label: 'Crop out and replate ballast tank no. 5',                    checkCell: 'A31_check',  locationCell: 'P31' },
+          { id: 'w7_bt6',         label: 'Crop out and replate ballast tank no. 6',                    checkCell: 'A32_check',  locationCell: 'P32' },
+          { id: 'w7_sideshell',   label: 'Crop out and replate side shell',                            checkCell: 'A33_check',  locationCell: 'P33' },
+          { id: 'w7_stemplate',   label: 'Crop out and replate stem plate',                            checkCell: 'A34_check',  locationCell: 'P34' },
+          { id: 'w7_er',          label: 'Crop out and replate Engine room',                           checkCell: 'A35_check',  locationCell: 'P35' },
+          { id: 'w7_apt_echo',    label: 'Crop out and replate A.P.T. and install Echo sounder',      checkCell: 'A36_check',  locationCell: 'P36' }
         ]
       },
       {
         title: 'No. 8 — Anchor / Chain / Locker Works',
         sheet: 'WORK DONE 2',
-        headerRow: 26,
+        headerRow: 37,
         items: [
-          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A27_check', locationCell: 'P27' },
-          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A28_check', locationCell: 'P28' },
-          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A29_check', locationCell: 'P29' },
-          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A30_check', locationCell: 'P30' }
+          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A38_check', locationCell: 'P38' },
+          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A39_check', locationCell: 'P39' },
+          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A40_check', locationCell: 'P40' },
+          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A41_check', locationCell: 'P41' }
         ]
       }
     ]
+  },
+  {
+    id: 'vesselList',
+    title: 'List of Vessel',
+    num: 'ix',
+    sheet: 'LIST OF VESSEL',
+    desc: 'Starts with 3 rows — tap + Add Vessel below to add more (up to 10).',
+    type: 'vesselList',
+    rowCount: 10,
+    initialVisible: 3,
+    baseRow: 5,
+    cols: {
+      vesselName: 'A',
+      company:    'B',
+      arrival:    'C',
+      drydock:    'D'
+    }
   }
 ];
 
@@ -1668,6 +1760,8 @@ function buildSection(sec) {
     body.appendChild(buildChecklist(sec));
   } else if (sec.type === 'workChecklist') {
     body.appendChild(buildWorkChecklist(sec));
+  } else if (sec.type === 'vesselList') {
+    body.appendChild(buildVesselList(sec));
   }
 
   const completeRow = document.createElement('div');
@@ -1774,6 +1868,7 @@ function buildField(f, sectionId) {
   const autoAttr = hasRecall ? ` data-recall="${fieldName}" autocomplete="off"` : '';
   const readonlyAttr = f.readonly ? ' readonly' : '';
   const meterAttrs = f.meterFormat ? ' data-meter="1" inputmode="decimal"' : '';
+  const dec2Attrs = f.decimal2 ? ' data-decimal2="1" inputmode="decimal"' : '';
   let input;
   if (f.type === 'textarea') {
     input = `<textarea name="${fieldName}" rows="2"${autoAttr}${readonlyAttr}></textarea>`;
@@ -1782,7 +1877,7 @@ function buildField(f, sectionId) {
   } else if (f.type === 'number') {
     input = `<input type="number" inputmode="decimal" step="any" name="${fieldName}"${readonlyAttr} />`;
   } else {
-    input = `<input type="text" name="${fieldName}" ${f.required?'required':''}${autoAttr}${readonlyAttr}${meterAttrs} />`;
+    input = `<input type="text" name="${fieldName}" ${f.required?'required':''}${autoAttr}${readonlyAttr}${meterAttrs}${dec2Attrs} />`;
   }
   const dropdownHtml = hasRecall
     ? `<div class="recall-dropdown" data-recall-dropdown="${fieldName}"></div>`
@@ -1930,6 +2025,25 @@ function buildClearanceGrid(sec) {
     stateInput.value = '';
     toggleDiv.appendChild(stateInput);
     wrap.appendChild(toggleDiv);
+
+    // v3.37: per-side Strut toggle for propeller
+    if (sec.type === 'propellerGrid') {
+      const strutDiv = document.createElement('div');
+      strutDiv.className = 'loc-toggle';
+      strutDiv.style.borderColor = 'var(--amber)';
+      strutDiv.innerHTML = `
+        <div class="loc-toggle-label">Which sides have a strut?</div>
+        <button type="button" class="loc-pill strut-pill" data-strut="center" data-sec="${sec.id}">Center</button>
+        <button type="button" class="loc-pill strut-pill" data-strut="port" data-sec="${sec.id}">Portside</button>
+        <button type="button" class="loc-pill strut-pill" data-strut="stbd" data-sec="${sec.id}">Starboard</button>
+      `;
+      const strutInput = document.createElement('input');
+      strutInput.type = 'hidden';
+      strutInput.name = `${sec.id}__strutSides`;
+      strutInput.value = '';
+      strutDiv.appendChild(strutInput);
+      wrap.appendChild(strutDiv);
+    }
   }
 
   let clearanceContainer = wrap;
@@ -1986,11 +2100,28 @@ function buildClearanceGrid(sec) {
       tbl.dataset.locGroup = loc;
       tbl.dataset.locSection = sec.id;
     }
+    // v3.37: if this entire group is a "Strut" group, tag the whole table
+    if (sec.type === 'propellerGrid' && /strut/i.test(groupName)) {
+      const lower = groupName.toLowerCase();
+      let strutSide = 'center';
+      if (lower.startsWith('port')) strutSide = 'port';
+      else if (lower.startsWith('stbd') || lower.startsWith('starboard')) strutSide = 'stbd';
+      tbl.dataset.strutSide = strutSide;
+    }
     let html = `<tr><th colspan="${cols.length+1}">${escapeHtml(groupName)}</th></tr><tr><th></th>`;
     for (const c of cols) {
       const tail = c.label.split(' ').slice(-1)[0];
       const isAP = tail.toUpperCase() === 'AP';
-      html += `<th${isAP ? ' data-ap-col' : ''}>${escapeHtml(tail)}</th>`;
+      const isStrut = /strut/i.test(c.label);
+      let strutAttr = '';
+      if (isStrut) {
+        const lblLower = c.label.toLowerCase();
+        let strutSide = 'center';
+        if (lblLower.startsWith('port')) strutSide = 'port';
+        else if (lblLower.startsWith('stbd') || lblLower.startsWith('starboard')) strutSide = 'stbd';
+        strutAttr = ` data-strut-side="${strutSide}"`;
+      }
+      html += `<th${isAP ? ' data-ap-col' : ''}${strutAttr}>${escapeHtml(tail)}</th>`;
     }
     html += '</tr>';
     for (const r of sec.rows) {
@@ -1999,7 +2130,16 @@ function buildClearanceGrid(sec) {
         const name = `${sec.id}__${r.id}_${c.id}`;
         const tail = c.label.split(' ').slice(-1)[0];
         const isAP = tail.toUpperCase() === 'AP';
-        html += `<td${isAP ? ' data-ap-col' : ''}><input type="text" inputmode="decimal" data-decimal2="1" name="${name}" /></td>`;
+        const isStrut = /strut/i.test(c.label);
+        let strutAttr = '';
+        if (isStrut) {
+          const lblLower = c.label.toLowerCase();
+          let strutSide = 'center';
+          if (lblLower.startsWith('port')) strutSide = 'port';
+          else if (lblLower.startsWith('stbd') || lblLower.startsWith('starboard')) strutSide = 'stbd';
+          strutAttr = ` data-strut-side="${strutSide}"`;
+        }
+        html += `<td${isAP ? ' data-ap-col' : ''}${strutAttr}><input type="text" inputmode="decimal" data-decimal2="1" name="${name}" /></td>`;
       }
       html += '</tr>';
     }
@@ -2020,8 +2160,9 @@ function buildClearanceGrid(sec) {
       tbl.style.display = 'none';
       tbl.dataset.locGroup = side.id;
       tbl.dataset.locSection = sec.id;
+      const isPropSec = (sec.type === 'propellerGrid');
       let html = `<tr><th colspan="4">${escapeHtml(side.label)}</th></tr>
-        <tr><th></th><th>Outboard</th><th>Inboard</th><th>Strut</th></tr>`;
+        <tr><th></th><th>Outboard</th><th>Inboard</th><th${isPropSec ? ` data-strut-side="${side.id}"` : ''}>Strut</th></tr>`;
       for (const f of bd.fields) {
         const ob = `${sec.id}__bearing_${f.id}_${side.id}_outboard`;
         const ib = `${sec.id}__bearing_${f.id}_${side.id}_inboard`;
@@ -2030,7 +2171,7 @@ function buildClearanceGrid(sec) {
           <td class="label">${escapeHtml(f.label)}</td>
           <td><input type="text" name="${ob}" /></td>
           <td><input type="text" name="${ib}" /></td>
-          <td><input type="text" name="${st}" /></td>
+          <td${isPropSec ? ` data-strut-side="${side.id}"` : ''}><input type="text" name="${st}" /></td>
         </tr>`;
       }
       tbl.innerHTML = html;
@@ -2162,7 +2303,7 @@ function buildWorkChecklist(sec) {
         </div>
         <div class="check-label">
           ${escapeHtml(item.label)}
-          ${item.locationCell ? `<div class="work-item-location"><input type="text" name="${sec.id}__${item.id}_loc" /></div>` : ''}
+          ${item.locationCell ? `<div class="work-item-location"><select name="${sec.id}__${item.id}_loc"><option value="">— Select location —</option><option value="Portside">Portside</option><option value="Starboard side">Starboard side</option><option value="Center">Center</option><option value="Portside/Starboard side">Portside / Starboard side</option></select></div>` : ''}
         </div>
       </div>`;
     }
@@ -2176,6 +2317,78 @@ function buildWorkChecklist(sec) {
     cb.classList.toggle('checked');
     updateAllProgress();
   });
+  return wrap;
+}
+
+/* v3.38: List of Vessel — 10 rows × 4 columns */
+function buildVesselList(sec) {
+  const wrap = document.createElement('div');
+  wrap.className = 'vessel-list-wrap';
+  wrap.dataset.sectionId = sec.id;
+
+  for (let i = 0; i < sec.rowCount; i++) {
+    const card = document.createElement('div');
+    card.className = 'vessel-list-row';
+    card.dataset.rowIdx = String(i);
+    if (i === 0) {
+      card.classList.add('vessel-list-row-1');
+    }
+    // Hide rows beyond initialVisible by default
+    if (i >= (sec.initialVisible || 3)) {
+      card.style.display = 'none';
+    }
+    const companyFieldName = `${sec.id}__r${i}_company`;
+    const rowOneHint = (i === 0)
+      ? '<div class="vessel-list-hint">↪ Auto-fills from Ships Data (editable)</div>'
+      : '';
+    // Show "× Remove" button on rows beyond initial 3
+    const removeBtn = (i >= (sec.initialVisible || 3))
+      ? `<button type="button" class="vessel-list-remove" data-remove-idx="${i}" title="Hide this row">×</button>`
+      : '';
+    card.innerHTML = `
+      <div class="vessel-list-num">${i + 1}</div>
+      <div class="vessel-list-fields">
+        ${rowOneHint}
+        <div class="field">
+          <label>Name of Vessel</label>
+          <input type="text" name="${sec.id}__r${i}_vesselName" />
+        </div>
+        <div class="field has-recall">
+          <label>Company</label>
+          <input type="text" name="${companyFieldName}" data-recall="${companyFieldName}" data-recall-source="shipsData__companyName" autocomplete="off" />
+          <div class="recall-dropdown" data-recall-dropdown="${companyFieldName}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Arrival</label>
+            <input type="date" name="${sec.id}__r${i}_arrival" />
+          </div>
+          <div class="field">
+            <label>Drydock</label>
+            <input type="date" name="${sec.id}__r${i}_drydock" />
+          </div>
+        </div>
+      </div>
+      ${removeBtn}
+    `;
+    wrap.appendChild(card);
+  }
+
+  // Hidden input to remember how many rows the user has expanded to
+  const stateInput = document.createElement('input');
+  stateInput.type = 'hidden';
+  stateInput.name = `${sec.id}__visibleCount`;
+  stateInput.value = String(sec.initialVisible || 3);
+  wrap.appendChild(stateInput);
+
+  // "+ Add Vessel" button
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'vessel-list-add';
+  addBtn.id = 'vesselListAddBtn';
+  addBtn.textContent = '+ Add Vessel';
+  wrap.appendChild(addBtn);
+
   return wrap;
 }
 
@@ -2286,6 +2499,14 @@ function countSectionFilled(sec) {
       const cb = document.querySelector(`.work-checkbox[data-check-name="${sec.id}__${item.id}"]`);
       if (cb && cb.classList.contains('checked')) filled++;
     }
+  } else if (sec.type === 'vesselList') {
+    for (let i = 0; i < sec.rowCount; i++) {
+      for (const key of ['vesselName','company','arrival','drydock']) {
+        total++;
+        const el = document.querySelector(`[name="${sec.id}__r${i}_${key}"]`);
+        if (el && el.value && el.value.trim()) filled++;
+      }
+    }
   }
   return { total, filled };
 }
@@ -2375,7 +2596,7 @@ function resetSectionStatuses() {
    ========================================================================= */
 function collectFormData() {
   const data = {};
-  for (const el of document.querySelectorAll('#entryForm input, #entryForm textarea')) {
+  for (const el of document.querySelectorAll('#entryForm input, #entryForm textarea, #entryForm select')) {
     if (!el.name) continue;
     data[el.name] = el.value;
   }
@@ -2393,7 +2614,7 @@ function collectFormData() {
 
 function fillFormData(data) {
   if (!data) return;
-  for (const el of document.querySelectorAll('#entryForm input, #entryForm textarea')) {
+  for (const el of document.querySelectorAll('#entryForm input, #entryForm textarea, #entryForm select')) {
     if (!el.name) continue;
     el.value = data[el.name] || '';
   }
@@ -2417,6 +2638,9 @@ function fillFormData(data) {
     if (sec.type === 'rudderGrid' || sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid') {
       restoreLocationToggles(sec.id, data[`${sec.id}__locations`] || '');
     }
+    if (sec.type === 'propellerGrid') {
+      restoreStrutToggles(sec.id, data[`${sec.id}__strutSides`] || '');
+    }
   }
   for (const sec of SCHEMA) {
     if (sec.type === 'rudderGrid' && sec.blocks) {
@@ -2432,6 +2656,10 @@ function fillFormData(data) {
   const hadSecondDocking = (data['vesselSchedule__hasSecondDocking'] || '') === 'yes' ||
     !!data['vesselSchedule__secondDockingDate'] || !!data['vesselSchedule__secondUndockingDate'];
   restoreSecondDockingToggle('vesselSchedule', hadSecondDocking ? 'yes' : '');
+  // v3.40: restore vessel-list visible count from saved data
+  if (typeof _refreshVesselListVisibility === 'function') {
+    _refreshVesselListVisibility();
+  }
   updateAllProgress();
 }
 
@@ -2455,6 +2683,9 @@ function clearForm() {
     }
   }
   applySecondDockingToggle('vesselSchedule', false);
+  // v3.40: reset vessel list back to 3 visible rows
+  _setVesselListVisibleCount(3);
+  _refreshVesselListVisibility();
   resetSectionStatuses();
   updateAllProgress();
 }
@@ -2669,23 +2900,199 @@ function fillIfEmptyOrAuto(fieldName, value) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+/* v3.39: List of Vessel — auto-fill row 1 + auto-calc rows 2-10 */
+function _addDaysSkippingSundays(isoDate, daysToAdd) {
+  if (!isoDate) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return '';
+  const dt = new Date(Date.UTC(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10)));
+  let added = 0;
+  while (added < daysToAdd) {
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    if (dt.getUTCDay() !== 0) added++; // skip Sundays (0 = Sunday)
+  }
+  const y = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${d}`;
+}
+
+function _addDaysSimple(isoDate, daysToAdd) {
+  if (!isoDate) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return '';
+  const dt = new Date(Date.UTC(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10)));
+  dt.setUTCDate(dt.getUTCDate() + daysToAdd);
+  const y = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${d}`;
+}
+
+function syncVesselListRow1FromShipsData() {
+  const map = [
+    { src: 'shipsData__vesselName',         dest: 'vesselList__r0_vesselName' },
+    { src: 'shipsData__companyName',        dest: 'vesselList__r0_company' },
+    { src: 'vesselSchedule__arrivalDate',   dest: 'vesselList__r0_arrival' },
+    { src: 'vesselSchedule__dockingDate',   dest: 'vesselList__r0_drydock' }
+  ];
+  for (const m of map) {
+    const srcEl = document.querySelector(`[name="${m.src}"]`);
+    const destEl = document.querySelector(`[name="${m.dest}"]`);
+    if (!srcEl || !destEl) continue;
+    destEl.value = srcEl.value || '';
+  }
+}
+
+function recalcVesselListRows() {
+  const rowCount = 10;
+  for (let i = 1; i < rowCount; i++) {
+    const prevDrydockEl = document.querySelector(`[name="vesselList__r${i-1}_drydock"]`);
+    const arrivalEl = document.querySelector(`[name="vesselList__r${i}_arrival"]`);
+    const drydockEl = document.querySelector(`[name="vesselList__r${i}_drydock"]`);
+    if (!prevDrydockEl || !arrivalEl || !drydockEl) continue;
+    const prevDrydock = prevDrydockEl.value || '';
+    if (!prevDrydock) {
+      arrivalEl.value = '';
+      drydockEl.value = '';
+      continue;
+    }
+    // Arrival = prev Drydock + 20 days excluding Sundays
+    const newArrival = _addDaysSkippingSundays(prevDrydock, 20);
+    arrivalEl.value = newArrival;
+    // Drydock = same row's Arrival + 1 day
+    drydockEl.value = _addDaysSimple(newArrival, 1);
+  }
+}
+
+// v3.40: helpers to show/hide vessel-list rows
+function _getVesselListVisibleCount() {
+  const el = document.querySelector('input[name="vesselList__visibleCount"]');
+  if (!el) return 3;
+  const n = parseInt(el.value, 10);
+  return isNaN(n) ? 3 : Math.max(3, Math.min(10, n));
+}
+function _setVesselListVisibleCount(n) {
+  const el = document.querySelector('input[name="vesselList__visibleCount"]');
+  if (!el) return;
+  el.value = String(Math.max(3, Math.min(10, n)));
+}
+function _refreshVesselListVisibility() {
+  const visible = _getVesselListVisibleCount();
+  for (let i = 0; i < 10; i++) {
+    const card = document.querySelector(`.vessel-list-row[data-row-idx="${i}"]`);
+    if (!card) continue;
+    card.style.display = (i < visible) ? '' : 'none';
+  }
+  const addBtn = document.getElementById('vesselListAddBtn');
+  if (addBtn) {
+    addBtn.disabled = (visible >= 10);
+    addBtn.textContent = (visible >= 10) ? '✓ All 10 vessels added' : `+ Add Vessel (${visible}/10)`;
+  }
+}
+
+// Wire up + Add Vessel button
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#vesselListAddBtn')) {
+    const current = _getVesselListVisibleCount();
+    if (current < 10) {
+      _setVesselListVisibleCount(current + 1);
+      _refreshVesselListVisibility();
+    }
+    return;
+  }
+  // Wire up × remove buttons (hide the row but keep data)
+  const removeBtn = e.target.closest('.vessel-list-remove');
+  if (removeBtn) {
+    const idx = parseInt(removeBtn.dataset.removeIdx, 10);
+    const current = _getVesselListVisibleCount();
+    // Only allow hiding the LAST visible row (so they stay sequential)
+    if (idx !== current - 1) {
+      toast('Only the last vessel can be removed', 'info');
+      return;
+    }
+    if (current <= 3) {
+      toast('Minimum 3 vessels required', 'info');
+      return;
+    }
+    // Clear that row's values before hiding
+    document.querySelector(`[name="vesselList__r${idx}_vesselName"]`).value = '';
+    document.querySelector(`[name="vesselList__r${idx}_company"]`).value = '';
+    document.querySelector(`[name="vesselList__r${idx}_arrival"]`).value = '';
+    document.querySelector(`[name="vesselList__r${idx}_drydock"]`).value = '';
+    _setVesselListVisibleCount(current - 1);
+    _refreshVesselListVisibility();
+    return;
+  }
+});
+
+// Listen for changes to Ships Data fields that feed Row 1 + recalc cascade
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (!t || !t.matches) return;
+  const trigger = t.matches('[name="shipsData__vesselName"]')
+               || t.matches('[name="shipsData__companyName"]')
+               || t.matches('[name="vesselSchedule__arrivalDate"]')
+               || t.matches('[name="vesselSchedule__dockingDate"]');
+  if (trigger) {
+    syncVesselListRow1FromShipsData();
+    recalcVesselListRows();
+    return;
+  }
+  // Also recalc when any vessel-list date is changed manually (cascades down)
+  if (t.matches('input[name^="vesselList__r"][name$="_drydock"]')) {
+    recalcVesselListRows();
+  }
+  if (t.matches('input[name^="vesselList__r"][name$="_arrival"]')) {
+    // If arrival was edited manually on a row, drydock = that arrival + 1, then cascade
+    const m = /vesselList__r(\d+)_arrival/.exec(t.name);
+    if (m) {
+      const idx = parseInt(m[1], 10);
+      const ddEl = document.querySelector(`[name="vesselList__r${idx}_drydock"]`);
+      if (ddEl && t.value) ddEl.value = _addDaysSimple(t.value, 1);
+      recalcVesselListRows();
+    }
+  }
+});
+
+
 document.addEventListener('click', (e) => {
   const pill = e.target.closest('.loc-pill');
   if (!pill) return;
   const sectionId = pill.dataset.sec;
-  const loc = pill.dataset.loc;
   pill.classList.toggle('active');
-  applyLocationToggles(sectionId);
+  if (pill.classList.contains('strut-pill')) {
+    applyStrutToggles(sectionId);
+  } else {
+    applyLocationToggles(sectionId);
+    // After location changes, re-apply strut visibility
+    if (document.querySelector(`.strut-pill[data-sec="${sectionId}"]`)) {
+      applyStrutToggles(sectionId);
+    }
+  }
 });
 
 function applyLocationToggles(sectionId) {
-  const pills = document.querySelectorAll(`.loc-pill[data-sec="${sectionId}"]`);
+  const pills = document.querySelectorAll(`.loc-pill[data-sec="${sectionId}"]:not(.strut-pill)`);
   const active = new Set();
   pills.forEach(p => { if (p.classList.contains('active')) active.add(p.dataset.loc); });
 
+  // Get active strut sides too — needed to decide whether to show strut tables
+  const strutActive = new Set();
+  document.querySelectorAll(`.strut-pill[data-sec="${sectionId}"].active`).forEach(p => {
+    strutActive.add(p.dataset.strut);
+  });
+
   const tables = document.querySelectorAll(`[data-loc-section="${sectionId}"]`);
   tables.forEach(t => {
-    t.style.display = active.has(t.dataset.locGroup) ? '' : 'none';
+    const isLocActive = active.has(t.dataset.locGroup);
+    const isStrutTable = !!t.dataset.strutSide;
+    if (isStrutTable) {
+      // Strut tables only show if BOTH the location is active AND strut is enabled for that side
+      t.style.display = (isLocActive && strutActive.has(t.dataset.strutSide)) ? '' : 'none';
+    } else {
+      t.style.display = isLocActive ? '' : 'none';
+    }
   });
 
   const empty = document.querySelector(`[data-loc-empty="${sectionId}"]`);
@@ -2697,6 +3104,68 @@ function applyLocationToggles(sectionId) {
   refreshAllPulloutBlocksInSection(sectionId);
 
   updateAllProgress();
+}
+
+// v3.37: Per-side Strut toggle for propeller
+function applyStrutToggles(sectionId) {
+  const pills = document.querySelectorAll(`.strut-pill[data-sec="${sectionId}"]`);
+  const active = new Set();
+  pills.forEach(p => {
+    if (p.classList.contains('active')) active.add(p.dataset.strut);
+    // Filter by which sides are also activated in the location toggle
+  });
+  // Save state
+  const stateInput = document.querySelector(`input[name="${sectionId}__strutSides"]`);
+  if (stateInput) stateInput.value = Array.from(active).sort().join(',');
+
+  // Find all strut cells in this section and hide if side isn't in active
+  const section = document.querySelector(`details.section[data-section-id="${sectionId}"]`);
+  if (!section) return;
+
+  // Get currently active locations (so we don't show strut when location is off)
+  const locActive = new Set();
+  document.querySelectorAll(`.loc-pill[data-sec="${sectionId}"].active:not(.strut-pill)`).forEach(p => {
+    locActive.add(p.dataset.loc);
+  });
+
+  // Show/hide strut TABLES (the whole "PORT STRUT" / "STBD STRUT" tables)
+  section.querySelectorAll('table[data-strut-side]').forEach(tbl => {
+    const side = tbl.dataset.strutSide;
+    const shouldShow = active.has(side) && locActive.has(side);
+    tbl.style.display = shouldShow ? '' : 'none';
+  });
+
+  // Show/hide strut CELLS inside bearing details tables (the Strut column)
+  section.querySelectorAll('th[data-strut-side], td[data-strut-side]').forEach(cell => {
+    const side = cell.dataset.strutSide;
+    const shouldShow = active.has(side) && locActive.has(side);
+    cell.style.display = shouldShow ? '' : 'none';
+  });
+
+  pills.forEach(p => {
+    if (locActive.size === 0) {
+      // No locations active — hide strut pills (locations chosen first)
+      p.style.display = 'none';
+    } else {
+      p.style.display = locActive.has(p.dataset.strut) ? '' : 'none';
+      // If hidden, also clear active state so we don't carry stale strut data
+      if (!locActive.has(p.dataset.strut) && p.classList.contains('active')) {
+        p.classList.remove('active');
+      }
+    }
+  });
+
+  updateAllProgress();
+}
+
+function restoreStrutToggles(sectionId, csv) {
+  const wanted = new Set((csv || '').split(',').filter(Boolean));
+  const pills = document.querySelectorAll(`.strut-pill[data-sec="${sectionId}"]`);
+  pills.forEach(p => {
+    if (wanted.has(p.dataset.strut)) p.classList.add('active');
+    else p.classList.remove('active');
+  });
+  applyStrutToggles(sectionId);
 }
 
 function restoreLocationToggles(sectionId, csv) {
@@ -2887,6 +3356,9 @@ function buildSheetWrites(data) {
       const pulledSides = isPropeller
         ? new Set((data[`${sec.id}__clearance_pulledSides`] || '').split(',').filter(Boolean))
         : new Set();
+      const strutSides = isPropeller
+        ? new Set((data[`${sec.id}__strutSides`] || '').split(',').filter(Boolean))
+        : new Set();
       function propSideNotPulled(side) { return isPropeller && !pulledSides.has(side); }
 
       function colSideFromLabel(label) {
@@ -2902,6 +3374,14 @@ function buildSheetWrites(data) {
       for (const r of sec.rows) for (const c of sec.cols) {
         const v = data[`${sec.id}__${r.id}_${c.id}`] || '';
         if (!v) continue;
+        // v3.37: skip strut writes if this side has no strut
+        if (isPropeller && /strut/i.test(c.label)) {
+          const lblLower = c.label.toLowerCase();
+          let strutSide = 'center';
+          if (lblLower.startsWith('port')) strutSide = 'port';
+          else if (lblLower.startsWith('stbd') || lblLower.startsWith('starboard')) strutSide = 'stbd';
+          if (!strutSides.has(strutSide)) continue;
+        }
         writes.push({ sheet: sec.sheet, range: `${c.col}${r.row}`, value: v });
 
         if (isPropeller && / BP$/i.test(c.label) && propSideNotPulled(colSideFromLabel(c.label))) {
@@ -2921,7 +3401,7 @@ function buildSheetWrites(data) {
             const st = data[`${sec.id}__bearing_${f.id}_${side.id}_strut`]    || '';
             if (ob) writes.push({ sheet: sec.sheet, range: `${side.outboardCol}${f.row}`, value: ob });
             if (ib) writes.push({ sheet: sec.sheet, range: `${side.inboardCol}${f.row}`,  value: ib });
-            if (st) writes.push({ sheet: sec.sheet, range: `${side.strutCol}${f.row}`,    value: st });
+            if (st && (sec.type !== 'propellerGrid' || strutSides.has(side.id))) writes.push({ sheet: sec.sheet, range: `${side.strutCol}${f.row}`, value: st });
           }
         }
       }
@@ -2972,6 +3452,24 @@ function buildSheetWrites(data) {
             const loc = data[`${sec.id}__${item.id}_loc`] || '';
             if (loc) writes.push({ sheet: grpSheet, range: item.locationCell, value: loc });
           }
+        }
+      }
+    } else if (sec.type === 'vesselList') {
+      // v3.40: only write the visible rows (rest stay blank in template)
+      const visibleCount = parseInt(data[`${sec.id}__visibleCount`] || '3', 10);
+      const cap = Math.max(3, Math.min(10, isNaN(visibleCount) ? 3 : visibleCount));
+      for (let i = 0; i < sec.rowCount; i++) {
+        const row = sec.baseRow + i;
+        const fields = [
+          { key: 'vesselName', col: sec.cols.vesselName, isDate: false },
+          { key: 'company',    col: sec.cols.company,    isDate: false },
+          { key: 'arrival',    col: sec.cols.arrival,    isDate: true  },
+          { key: 'drydock',    col: sec.cols.drydock,    isDate: true  }
+        ];
+        for (const f of fields) {
+          let v = (i < cap) ? (data[`${sec.id}__r${i}_${f.key}`] || '') : '';
+          if (f.isDate && v) v = formatDate(v);
+          writes.push({ sheet: sec.sheet, range: `${f.col}${row}`, value: v });
         }
       }
     }
@@ -3418,6 +3916,13 @@ function countOverall(data) {
       for (const grp of sec.groups) for (const item of grp.items) {
         total++; if ((data[`${sec.id}__${item.id}`] || '').toString().trim()) filled++;
       }
+    } else if (sec.type === 'vesselList') {
+      for (let i = 0; i < sec.rowCount; i++) {
+        for (const key of ['vesselName','company','arrival','drydock']) {
+          total++;
+          if ((data[`${sec.id}__r${i}_${key}`] || '').toString().trim()) filled++;
+        }
+      }
     }
   }
   return { total, filled };
@@ -3547,7 +4052,9 @@ function _renderRecallDropdown(input) {
   const dropdown = document.querySelector(`[data-recall-dropdown="${fieldName}"]`);
   if (!dropdown) return;
 
-  recallList(fieldName).then(items => {
+  // v3.39: support data-recall-source for sharing history across fields (e.g. company)
+  const sourceField = input.dataset.recallSource || fieldName;
+  recallList(sourceField).then(items => {
     const filter = input.value.trim().toLowerCase();
     const filtered = filter
       ? items.filter(it => it.value.toLowerCase().includes(filter))
@@ -3660,6 +4167,11 @@ async function recordAutocompleteFromData(data) {
   for (const fieldName of AUTOCOMPLETE_FIELDS) {
     const v = (data[fieldName] || '').trim();
     if (v) await recallAdd(fieldName, v);
+  }
+  // v3.39: vessel-list company values feed into shared company history
+  for (let i = 0; i < 10; i++) {
+    const v = (data[`vesselList__r${i}_company`] || '').trim();
+    if (v) await recallAdd('shipsData__companyName', v);
   }
 }
 
@@ -3927,7 +4439,7 @@ document.getElementById('cloudModal').addEventListener('click', (e) => {
   if (e.target.id === 'cloudModal') closeCloudModal();
 });
 
-console.log('[v3.36] Cloud drafts + PIN protection ready');
+console.log('[v3.37] All features ready');
 
 /* =========================================================================
    v3.36 — PIN PROTECTION FOR API CONFIG + WIPE
@@ -4235,6 +4747,11 @@ for (const sec of SCHEMA) {
     refreshPulloutBlock(`${sec.id}__clearance`);
   }
 }
+// v3.39: keep vessel-list row 1 in sync after form is built
+syncVesselListRow1FromShipsData();
+recalcVesselListRows();
+// v3.40: ensure correct rows visible (in case schema changes or after restore)
+_refreshVesselListVisibility();
 updateNetStatus();
 refreshBadges();
 renderAuth();
