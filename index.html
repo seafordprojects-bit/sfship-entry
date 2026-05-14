@@ -3998,7 +3998,7 @@ async function buildHideRowsRequests(data, spreadsheetId) {
       if (sid !== undefined) {
         requests.push(...rowRangesToHideRequests(sid, rows));
 
-        const SPACER_ROW = 42;
+        const SPACER_ROW = 48;
         const DEFAULT_ROW_HEIGHT = 21;
         const hiddenCount = new Set(rows).size;
         const expandedHeight = DEFAULT_ROW_HEIGHT + (hiddenCount * DEFAULT_ROW_HEIGHT);
