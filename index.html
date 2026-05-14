@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
-<title>SF Ship · Vessel Data Entry (v3.47)</title>
+<title>SF Ship · Vessel Data Entry (v3.48)</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -1112,7 +1112,7 @@
       <div class="logo-mark">SF</div>
       <div class="logo-text">
         Vessel Data Entry
-        <small>SF SHIP BUILDING & REPAIR · v3.47</small>
+        <small>SF SHIP BUILDING & REPAIR · v3.48</small>
       </div>
     </div>
     <div class="status-pill" id="netStatus">
@@ -1221,7 +1221,7 @@
     <div class="setting-group">
       <h4>About this app</h4>
       <p>Built for offline vessel data entry across Ships Data, Rudder, Tailshaft, Chain Calibration, Test Report, Propeller, and Work Done. Saves locally on this phone, syncs to your Drive when online.</p>
-      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.47 — Work Done writes to merged WORK DONE tab</p>
+      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.48 — Template signature blocks added (Groups 5-8 shifted +7)</p>
     </div>
 
     <div class="setting-group">
@@ -1677,51 +1677,51 @@ const SCHEMA = [
       {
         title: 'No. 5 — Tailshaft Works',
         sheet: 'WORK DONE',
-        headerRow: 42,
+        headerRow: 49,
         items: [
-          { id: 'w5_rope',       label: 'Remove and Install Rope guard',  checkCell: 'A43_check' },
-          { id: 'w5_clearance',  label: 'Check Bearing Clearance',        checkCell: 'A44_check' },
-          { id: 'w5_decouple',   label: 'Decouple/recouple tailshaft',    checkCell: 'A45_check' },
-          { id: 'w5_remove',     label: 'Remove and Reinstall Tailshaft', checkCell: 'A46_check' }
+          { id: 'w5_rope',       label: 'Remove and Install Rope guard',  checkCell: 'A50_check' },
+          { id: 'w5_clearance',  label: 'Check Bearing Clearance',        checkCell: 'A51_check' },
+          { id: 'w5_decouple',   label: 'Decouple/recouple tailshaft',    checkCell: 'A52_check' },
+          { id: 'w5_remove',     label: 'Remove and Reinstall Tailshaft', checkCell: 'A53_check' }
         ]
       },
       {
         title: 'No. 6 — Propeller Works',
         sheet: 'WORK DONE',
-        headerRow: 47,
+        headerRow: 54,
         items: [
-          { id: 'w6_remove',  label: 'Remove and Install for tailshaft removal',  checkCell: 'A48_check' },
-          { id: 'w6_polish',  label: 'Light Polishing',                            checkCell: 'A49_check' }
+          { id: 'w6_remove',  label: 'Remove and Install for tailshaft removal',  checkCell: 'A55_check' },
+          { id: 'w6_polish',  label: 'Light Polishing',                            checkCell: 'A56_check' }
         ]
       },
       {
         title: 'No. 7 — Steel Works',
         sheet: 'WORK DONE',
-        headerRow: 50,
+        headerRow: 57,
         items: [
-          { id: 'w7_fpt',         label: 'Crop out and replate F.P.T.',                                checkCell: 'A51_check',  locationCell: 'P51' },
-          { id: 'w7_bosun',       label: 'Crop out and replate Bosun store side shell',                checkCell: 'A52_check',  locationCell: 'P52' },
-          { id: 'w7_bt1',         label: 'Crop out and replate ballast tank no. 1',                    checkCell: 'A53_check',  locationCell: 'P53' },
-          { id: 'w7_bt2',         label: 'Crop out and replate ballast tank no. 2',                    checkCell: 'A54_check',  locationCell: 'P54' },
-          { id: 'w7_bt3',         label: 'Crop out and replate ballast tank no. 3',                    checkCell: 'A55_check',  locationCell: 'P55' },
-          { id: 'w7_bt4',         label: 'Crop out and replate ballast tank no. 4',                    checkCell: 'A56_check',  locationCell: 'P56' },
-          { id: 'w7_bt5',         label: 'Crop out and replate ballast tank no. 5',                    checkCell: 'A57_check',  locationCell: 'P57' },
-          { id: 'w7_bt6',         label: 'Crop out and replate ballast tank no. 6',                    checkCell: 'A58_check',  locationCell: 'P58' },
-          { id: 'w7_sideshell',   label: 'Crop out and replate side shell',                            checkCell: 'A59_check',  locationCell: 'P59' },
-          { id: 'w7_stemplate',   label: 'Crop out and replate stem plate',                            checkCell: 'A60_check',  locationCell: 'P60' },
-          { id: 'w7_er',          label: 'Crop out and replate Engine room',                           checkCell: 'A61_check',  locationCell: 'P61' },
-          { id: 'w7_apt_echo',    label: 'Crop out and replate A.P.T. and install Echo sounder',      checkCell: 'A62_check',  locationCell: 'P62' }
+          { id: 'w7_fpt',         label: 'Crop out and replate F.P.T.',                                checkCell: 'A58_check',  locationCell: 'P58' },
+          { id: 'w7_bosun',       label: 'Crop out and replate Bosun store side shell',                checkCell: 'A59_check',  locationCell: 'P59' },
+          { id: 'w7_bt1',         label: 'Crop out and replate ballast tank no. 1',                    checkCell: 'A60_check',  locationCell: 'P60' },
+          { id: 'w7_bt2',         label: 'Crop out and replate ballast tank no. 2',                    checkCell: 'A61_check',  locationCell: 'P61' },
+          { id: 'w7_bt3',         label: 'Crop out and replate ballast tank no. 3',                    checkCell: 'A62_check',  locationCell: 'P62' },
+          { id: 'w7_bt4',         label: 'Crop out and replate ballast tank no. 4',                    checkCell: 'A63_check',  locationCell: 'P63' },
+          { id: 'w7_bt5',         label: 'Crop out and replate ballast tank no. 5',                    checkCell: 'A64_check',  locationCell: 'P64' },
+          { id: 'w7_bt6',         label: 'Crop out and replate ballast tank no. 6',                    checkCell: 'A65_check',  locationCell: 'P65' },
+          { id: 'w7_sideshell',   label: 'Crop out and replate side shell',                            checkCell: 'A66_check',  locationCell: 'P66' },
+          { id: 'w7_stemplate',   label: 'Crop out and replate stem plate',                            checkCell: 'A67_check',  locationCell: 'P67' },
+          { id: 'w7_er',          label: 'Crop out and replate Engine room',                           checkCell: 'A68_check',  locationCell: 'P68' },
+          { id: 'w7_apt_echo',    label: 'Crop out and replate A.P.T. and install Echo sounder',      checkCell: 'A69_check',  locationCell: 'P69' }
         ]
       },
       {
         title: 'No. 8 — Anchor / Chain / Locker Works',
         sheet: 'WORK DONE',
-        headerRow: 63,
+        headerRow: 70,
         items: [
-          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A64_check', locationCell: 'P64' },
-          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A65_check', locationCell: 'P65' },
-          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A66_check', locationCell: 'P66' },
-          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A67_check', locationCell: 'P67' }
+          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A71_check', locationCell: 'P71' },
+          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A72_check', locationCell: 'P72' },
+          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A73_check', locationCell: 'P73' },
+          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A74_check', locationCell: 'P74' }
         ]
       }
     ]
