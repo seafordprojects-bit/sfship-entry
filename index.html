@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#0a2540" />
-<title>SF Ship · Vessel Data Entry (v3.48)</title>
+<title>SF Ship · Vessel Data Entry (v3.50)</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
@@ -1112,7 +1112,7 @@
       <div class="logo-mark">SF</div>
       <div class="logo-text">
         Vessel Data Entry
-        <small>SF SHIP BUILDING & REPAIR · v3.48</small>
+        <small>SF SHIP BUILDING & REPAIR · v3.50</small>
       </div>
     </div>
     <div class="status-pill" id="netStatus">
@@ -1221,7 +1221,7 @@
     <div class="setting-group">
       <h4>About this app</h4>
       <p>Built for offline vessel data entry across Ships Data, Rudder, Tailshaft, Chain Calibration, Test Report, Propeller, and Work Done. Saves locally on this phone, syncs to your Drive when online.</p>
-      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.48 — Template signature blocks added (Groups 5-8 shifted +7)</p>
+      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.50 — Rolled back to two-tab Work Done (WORK DONE 1 + WORK DONE 2). Added Primary/Additional Job Order picker (writes to B12/B13).</p>
     </div>
 
     <div class="setting-group">
@@ -1615,18 +1615,27 @@ const SCHEMA = [
     id: 'workDone',
     title: 'Work Done',
     num: 'viii',
-    sheet: 'WORK DONE',
+    sheet: 'WORK DONE 1',
     desc: 'Check off completed work. Add location notes where relevant.',
     type: 'workChecklist',
+    // Type of Repair cells exist on BOTH WORK DONE 1 and WORK DONE 2 (page 1
+    // and page 2 mirror each other). Sync writes to both so both pages show
+    // the same Regular/Emergency state.
     typeOfRepair: {
-      regularCells:   [{ sheet: 'WORK DONE', cell: 'L12' }],
-      emergencyCells: [{ sheet: 'WORK DONE', cell: 'L13' }]
+      regularCells:   [{ sheet: 'WORK DONE 1', cell: 'L12' }, { sheet: 'WORK DONE 2', cell: 'L12' }],
+      emergencyCells: [{ sheet: 'WORK DONE 1', cell: 'L13' }, { sheet: 'WORK DONE 2', cell: 'L13' }]
     },
-    sheets: ['WORK DONE'],
+    // v3.50: Job Order classification (Primary vs Additional). Independent
+    // from Type of Repair. Cells B12/B13 on both tabs hold the checkmarks.
+    jobOrder: {
+      primaryCells:    [{ sheet: 'WORK DONE 1', cell: 'B12' }, { sheet: 'WORK DONE 2', cell: 'B12' }],
+      additionalCells: [{ sheet: 'WORK DONE 1', cell: 'B13' }, { sheet: 'WORK DONE 2', cell: 'B13' }]
+    },
+    sheets: ['WORK DONE 1', 'WORK DONE 2'],
     groups: [
       {
         title: 'No. 1 — Dock Works',
-        sheet: 'WORK DONE',
+        sheet: 'WORK DONE 1',
         headerRow: 16,
         items: [
           { id: 'w1_dock',      label: 'Drydocking and Undocking of Vessel',  checkCell: 'A17_check' },
@@ -1637,7 +1646,7 @@ const SCHEMA = [
       },
       {
         title: 'No. 2 — General Services',
-        sheet: 'WORK DONE',
+        sheet: 'WORK DONE 1',
         headerRow: 21,
         items: [
           { id: 'w2_predock',   label: 'Conduct pre docking survey',           checkCell: 'A22_check' },
@@ -1651,7 +1660,7 @@ const SCHEMA = [
       },
       {
         title: 'No. 3 — Hull Preservation',
-        sheet: 'WORK DONE',
+        sheet: 'WORK DONE 1',
         headerRow: 29,
         items: [
           { id: 'w3_barnacles',   label: 'Scrapping of Barnacles',                  checkCell: 'A30_check' },
@@ -1664,7 +1673,7 @@ const SCHEMA = [
       },
       {
         title: 'No. 4 — Rudder Works',
-        sheet: 'WORK DONE',
+        sheet: 'WORK DONE 1',
         headerRow: 36,
         items: [
           { id: 'w4_clearance',  label: 'Check Rudder Lower Bearing Clearance',  checkCell: 'A37_check' },
@@ -1676,52 +1685,52 @@ const SCHEMA = [
       },
       {
         title: 'No. 5 — Tailshaft Works',
-        sheet: 'WORK DONE',
-        headerRow: 49,
+        sheet: 'WORK DONE 2',
+        headerRow: 16,
         items: [
-          { id: 'w5_rope',       label: 'Remove and Install Rope guard',  checkCell: 'A50_check' },
-          { id: 'w5_clearance',  label: 'Check Bearing Clearance',        checkCell: 'A51_check' },
-          { id: 'w5_decouple',   label: 'Decouple/recouple tailshaft',    checkCell: 'A52_check' },
-          { id: 'w5_remove',     label: 'Remove and Reinstall Tailshaft', checkCell: 'A53_check' }
+          { id: 'w5_rope',       label: 'Remove and Install Rope guard',  checkCell: 'A17_check' },
+          { id: 'w5_clearance',  label: 'Check Bearing Clearance',        checkCell: 'A18_check' },
+          { id: 'w5_decouple',   label: 'Decouple/recouple tailshaft',    checkCell: 'A19_check' },
+          { id: 'w5_remove',     label: 'Remove and Reinstall Tailshaft', checkCell: 'A20_check' }
         ]
       },
       {
         title: 'No. 6 — Propeller Works',
-        sheet: 'WORK DONE',
-        headerRow: 54,
+        sheet: 'WORK DONE 2',
+        headerRow: 21,
         items: [
-          { id: 'w6_remove',  label: 'Remove and Install for tailshaft removal',  checkCell: 'A55_check' },
-          { id: 'w6_polish',  label: 'Light Polishing',                            checkCell: 'A56_check' }
+          { id: 'w6_remove',  label: 'Remove and Install for tailshaft removal',  checkCell: 'A22_check' },
+          { id: 'w6_polish',  label: 'Light Polishing',                            checkCell: 'A23_check' }
         ]
       },
       {
         title: 'No. 7 — Steel Works',
-        sheet: 'WORK DONE',
-        headerRow: 57,
+        sheet: 'WORK DONE 2',
+        headerRow: 24,
         items: [
-          { id: 'w7_fpt',         label: 'Crop out and replate F.P.T.',                                checkCell: 'A58_check',  locationCell: 'P58' },
-          { id: 'w7_bosun',       label: 'Crop out and replate Bosun store side shell',                checkCell: 'A59_check',  locationCell: 'P59' },
-          { id: 'w7_bt1',         label: 'Crop out and replate ballast tank no. 1',                    checkCell: 'A60_check',  locationCell: 'P60' },
-          { id: 'w7_bt2',         label: 'Crop out and replate ballast tank no. 2',                    checkCell: 'A61_check',  locationCell: 'P61' },
-          { id: 'w7_bt3',         label: 'Crop out and replate ballast tank no. 3',                    checkCell: 'A62_check',  locationCell: 'P62' },
-          { id: 'w7_bt4',         label: 'Crop out and replate ballast tank no. 4',                    checkCell: 'A63_check',  locationCell: 'P63' },
-          { id: 'w7_bt5',         label: 'Crop out and replate ballast tank no. 5',                    checkCell: 'A64_check',  locationCell: 'P64' },
-          { id: 'w7_bt6',         label: 'Crop out and replate ballast tank no. 6',                    checkCell: 'A65_check',  locationCell: 'P65' },
-          { id: 'w7_sideshell',   label: 'Crop out and replate side shell',                            checkCell: 'A66_check',  locationCell: 'P66' },
-          { id: 'w7_stemplate',   label: 'Crop out and replate stem plate',                            checkCell: 'A67_check',  locationCell: 'P67' },
-          { id: 'w7_er',          label: 'Crop out and replate Engine room',                           checkCell: 'A68_check',  locationCell: 'P68' },
-          { id: 'w7_apt_echo',    label: 'Crop out and replate A.P.T. and install Echo sounder',      checkCell: 'A69_check',  locationCell: 'P69' }
+          { id: 'w7_fpt',         label: 'Crop out and replate F.P.T.',                                checkCell: 'A25_check',  locationCell: 'P25' },
+          { id: 'w7_bosun',       label: 'Crop out and replate Bosun store side shell',                checkCell: 'A26_check',  locationCell: 'P26' },
+          { id: 'w7_bt1',         label: 'Crop out and replate ballast tank no. 1',                    checkCell: 'A27_check',  locationCell: 'P27' },
+          { id: 'w7_bt2',         label: 'Crop out and replate ballast tank no. 2',                    checkCell: 'A28_check',  locationCell: 'P28' },
+          { id: 'w7_bt3',         label: 'Crop out and replate ballast tank no. 3',                    checkCell: 'A29_check',  locationCell: 'P29' },
+          { id: 'w7_bt4',         label: 'Crop out and replate ballast tank no. 4',                    checkCell: 'A30_check',  locationCell: 'P30' },
+          { id: 'w7_bt5',         label: 'Crop out and replate ballast tank no. 5',                    checkCell: 'A31_check',  locationCell: 'P31' },
+          { id: 'w7_bt6',         label: 'Crop out and replate ballast tank no. 6',                    checkCell: 'A32_check',  locationCell: 'P32' },
+          { id: 'w7_sideshell',   label: 'Crop out and replate side shell',                            checkCell: 'A33_check',  locationCell: 'P33' },
+          { id: 'w7_stemplate',   label: 'Crop out and replate stem plate',                            checkCell: 'A34_check',  locationCell: 'P34' },
+          { id: 'w7_er',          label: 'Crop out and replate Engine room',                           checkCell: 'A35_check',  locationCell: 'P35' },
+          { id: 'w7_apt_echo',    label: 'Crop out and replate A.P.T. and install Echo sounder',      checkCell: 'A36_check',  locationCell: 'P36' }
         ]
       },
       {
         title: 'No. 8 — Anchor / Chain / Locker Works',
-        sheet: 'WORK DONE',
-        headerRow: 70,
+        sheet: 'WORK DONE 2',
+        headerRow: 37,
         items: [
-          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A71_check', locationCell: 'P71' },
-          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A72_check', locationCell: 'P72' },
-          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A73_check', locationCell: 'P73' },
-          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A74_check', locationCell: 'P74' }
+          { id: 'w8_range',   label: 'Range out/in anchor chain',         checkCell: 'A38_check', locationCell: 'P38' },
+          { id: 'w8_derust',  label: 'De-rust anchor chain',              checkCell: 'A39_check', locationCell: 'P39' },
+          { id: 'w8_paint',   label: 'Paint coal tar on anchor chain',    checkCell: 'A40_check', locationCell: 'P40' },
+          { id: 'w8_locker',  label: 'Clean and paint Chain Locker',      checkCell: 'A41_check', locationCell: 'P41' }
         ]
       }
     ]
@@ -2551,6 +2560,13 @@ function buildWorkChecklist(sec) {
       </div>
       <div class="check-label">Drydock type</div>
     </div>
+    <div class="checklist-item">
+      <div class="check-trio" data-check-name="workDone__jobOrder" data-binary="true">
+        <button type="button" class="check-pill" data-val="primary">Primary Job Order</button>
+        <button type="button" class="check-pill" data-val="additional">Additional Job Order</button>
+      </div>
+      <div class="check-label">Job order type</div>
+    </div>
   `;
   typeDiv.addEventListener('click', (e) => {
     const pill = e.target.closest('.check-pill');
@@ -2765,6 +2781,10 @@ function countSectionFilled(sec) {
     total++;
     const t = document.querySelector(`[data-check-name="workDone__typeRepair"]`);
     if (t && t.querySelector('.check-pill.active')) filled++;
+    // v3.50: Job Order picker counts as a required field too
+    total++;
+    const jo = document.querySelector(`[data-check-name="workDone__jobOrder"]`);
+    if (jo && jo.querySelector('.check-pill.active')) filled++;
     for (const grp of sec.groups) for (const item of grp.items) {
       total++;
       const cb = document.querySelector(`.work-checkbox[data-check-name="${sec.id}__${item.id}"]`);
@@ -3728,6 +3748,13 @@ function buildSheetWrites(data) {
         writes.push({ sheet: sec.sheet, range: tre.regularCell, value: tor === 'regular' });
         writes.push({ sheet: sec.sheet, range: tre.emergencyCell, value: tor === 'emergency' });
       }
+      // v3.50: Job Order Type (Primary vs Additional) writes to B12/B13 on both tabs.
+      const jor = data['workDone__jobOrder'] || '';
+      const jo = sec.jobOrder;
+      if (jo && jo.primaryCells) {
+        for (const c of jo.primaryCells)    writes.push({ sheet: c.sheet, range: c.cell, value: jor === 'primary' });
+        for (const c of jo.additionalCells) writes.push({ sheet: c.sheet, range: c.cell, value: jor === 'additional' });
+      }
       for (const grp of sec.groups) {
         const grpSheet = grp.sheet || sec.sheet;
         for (const item of grp.items) {
@@ -3925,7 +3952,7 @@ async function callAppsScriptForPerTabPDFs(spreadsheetId, data) {
 
 const PDF_TABS = [
   'TRANSMITTAL', 'RUDDER', 'CHAIN CALIB.', 'CHAIN CALIB. 2', 'TEST REPORT',
-  'PROPELLER', 'LOAD LINE', 'WORK DONE', 'CERT. DRYDOCK', 'LIST OF VESSEL'
+  'PROPELLER', 'LOAD LINE', 'WORK DONE 1', 'WORK DONE 2', 'CERT. DRYDOCK', 'LIST OF VESSEL'
 ];
 
 async function renumberWorkDoneCategories(data, spreadsheetId) {
@@ -3997,23 +4024,12 @@ async function buildHideRowsRequests(data, spreadsheetId) {
       const sid = sheetIdByName[sheetName];
       if (sid !== undefined) {
         requests.push(...rowRangesToHideRequests(sid, rows));
-
-        const SPACER_ROW = 48;
-        const DEFAULT_ROW_HEIGHT = 21;
-        const hiddenCount = new Set(rows).size;
-        const expandedHeight = DEFAULT_ROW_HEIGHT + (hiddenCount * DEFAULT_ROW_HEIGHT);
-        requests.push({
-          updateDimensionProperties: {
-            range: {
-              sheetId: sid,
-              dimension: 'ROWS',
-              startIndex: SPACER_ROW - 1,
-              endIndex: SPACER_ROW
-            },
-            properties: { pixelSize: expandedHeight },
-            fields: 'pixelSize'
-          }
-        });
+        // v3.50: removed SPACER_ROW expansion. Was inflating row 48 on the
+        // consolidated WORK DONE tab so signature #2 stayed anchored to the
+        // bottom of page 2 when groups above were hidden. With the two-tab
+        // structure (WORK DONE 1 / WORK DONE 2), each tab is its own short
+        // page — when groups hide, the signature simply floats up within the
+        // single page. No spacer compensation needed.
       }
     }
   }
@@ -4197,6 +4213,8 @@ function countOverall(data) {
       }
     } else if (sec.type === 'workChecklist') {
       total++; if ((data['workDone__typeRepair'] || '').toString().trim()) filled++;
+      // v3.50: Job Order picker counts as required
+      total++; if ((data['workDone__jobOrder'] || '').toString().trim()) filled++;
       for (const grp of sec.groups) for (const item of grp.items) {
         total++; if ((data[`${sec.id}__${item.id}`] || '').toString().trim()) filled++;
       }
