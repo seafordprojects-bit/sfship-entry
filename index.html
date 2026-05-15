@@ -4170,7 +4170,13 @@ async function buildHideRowsRequests(data, spreadsheetId) {
         const spacer = SIGNATURE_SPACERS[sheetName];
         if (spacer) {
           const hiddenCount = new Set(rows).size;
-          const newHeight = DEFAULT_ROW_HEIGHT * (1 + hiddenCount);
+          // v3.50: spacer height = hiddenCount × DEFAULT_ROW_HEIGHT (no +1).
+          // The +1 overran the page by 21px and pushed the signature's Date:
+          // row onto a phantom page 2. Without +1, total page height stays
+          // constant at (header + 26 base rows + signature) regardless of
+          // how many rows are hidden, leaving ~40px of breathing room for
+          // border padding and rendering overhead.
+          const newHeight = DEFAULT_ROW_HEIGHT * hiddenCount;
           requests.push({
             updateDimensionProperties: {
               range: {
