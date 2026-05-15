@@ -598,6 +598,54 @@
     font-size: 15px; border-radius: 2px;
     font-family: Calibri, sans-serif;
   }
+  /* v3.50: Location selector — button that opens a multi-select dropdown.
+     Replaces the old <select> so user can tick multiple sides (Portside +
+     Starboard, etc) and the result is joined with "/" in tap order. */
+  .loc-multiselect {
+    position: relative;
+    width: 100%;
+  }
+  .loc-multiselect-btn {
+    width: 100%; padding: 7px 26px 7px 8px;
+    border: 1px solid var(--line); background: var(--paper);
+    font-size: 15px; border-radius: 2px;
+    font-family: Calibri, sans-serif;
+    text-align: left;
+    cursor: pointer;
+    color: var(--ink);
+    position: relative;
+  }
+  .loc-multiselect-btn.placeholder { color: var(--ink-soft); }
+  .loc-multiselect-btn::after {
+    content: '▾'; position: absolute; right: 8px; top: 50%;
+    transform: translateY(-50%); font-size: 11px; color: var(--ink-soft);
+  }
+  .loc-multiselect-btn.open::after { transform: translateY(-50%) rotate(180deg); }
+  .loc-multiselect-panel {
+    display: none;
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 2px; padding: 4px 0; z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .loc-multiselect-panel.open { display: block; }
+  .loc-multiselect-option {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; cursor: pointer;
+    font-size: 15px; font-family: Calibri, sans-serif;
+    user-select: none;
+  }
+  .loc-multiselect-option:hover { background: var(--bone); }
+  .loc-multiselect-option .lo-check {
+    width: 18px; height: 18px; border: 1.5px solid var(--ink-soft);
+    border-radius: 2px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--paper); font-weight: bold;
+  }
+  .loc-multiselect-option.checked .lo-check {
+    background: var(--green); border-color: var(--green);
+  }
+  .loc-multiselect-option.checked .lo-check::before { content: '✓'; }
 
   .actions {
     position: fixed; bottom: 0; left: 0; right: 0;
@@ -1685,11 +1733,11 @@ const SCHEMA = [
         sheet: 'WORK DONE 1',
         headerRow: 36,
         items: [
-          { id: 'w4_clearance',  label: 'Check Rudder Lower Bearing Clearance',  checkCell: 'A37_check' },
-          { id: 'w4_remove',     label: 'Remove and reinstall rudder blade',     checkCell: 'A38_check' },
-          { id: 'w4_cement',     label: 'Break/recement rudder flange seal',     checkCell: 'A39_check' },
-          { id: 'w4_collar',     label: 'Install jumping collar',                checkCell: 'A40_check' },
-          { id: 'w4_zinc',       label: 'Renewal of Zinc Anodes',                checkCell: 'A41_check' }
+          { id: 'w4_clearance',  label: 'Check Rudder Lower Bearing Clearance',  checkCell: 'A37_check', locationCell: 'P37' },
+          { id: 'w4_remove',     label: 'Remove and reinstall rudder blade',     checkCell: 'A38_check', locationCell: 'P38' },
+          { id: 'w4_cement',     label: 'Break/recement rudder flange seal',     checkCell: 'A39_check', locationCell: 'P39' },
+          { id: 'w4_collar',     label: 'Install jumping collar',                checkCell: 'A40_check', locationCell: 'P40' },
+          { id: 'w4_zinc',       label: 'Renewal of Zinc Anodes',                checkCell: 'A41_check', locationCell: 'P41' }
         ]
       },
       {
@@ -1697,10 +1745,10 @@ const SCHEMA = [
         sheet: 'WORK DONE 2',
         headerRow: 16,
         items: [
-          { id: 'w5_rope',       label: 'Remove and Install Rope guard',  checkCell: 'A17_check' },
-          { id: 'w5_clearance',  label: 'Check Bearing Clearance',        checkCell: 'A18_check' },
-          { id: 'w5_decouple',   label: 'Decouple/recouple tailshaft',    checkCell: 'A19_check' },
-          { id: 'w5_remove',     label: 'Remove and Reinstall Tailshaft', checkCell: 'A20_check' }
+          { id: 'w5_rope',       label: 'Remove and Install Rope guard',  checkCell: 'A17_check', locationCell: 'P17' },
+          { id: 'w5_clearance',  label: 'Check Bearing Clearance',        checkCell: 'A18_check', locationCell: 'P18' },
+          { id: 'w5_decouple',   label: 'Decouple/recouple tailshaft',    checkCell: 'A19_check', locationCell: 'P19' },
+          { id: 'w5_remove',     label: 'Remove and Reinstall Tailshaft', checkCell: 'A20_check', locationCell: 'P20' }
         ]
       },
       {
@@ -2564,10 +2612,13 @@ function buildWorkChecklist(sec) {
     <div class="checklist-group-head">Type of Repair</div>
     <div style="display:grid; grid-template-columns: auto auto auto; gap:8px 10px; padding:10px; align-items:center; justify-content:start">
       <!-- Row 1 — Drydock type. display:contents on check-trio lets its
-           child pills participate in the parent grid for column alignment. -->
+           child pills participate in the parent grid for column alignment.
+           v3.50: Regular Drydock starts ACTIVE by default (matches the
+           Primary Job Order locked-on pattern). User can tap Emergency to
+           switch, which auto-unchecks Regular (single-select trio). -->
       <div class="check-label" style="padding-top:0">Drydock type</div>
       <div class="check-trio" data-check-name="workDone__typeRepair" data-binary="true" style="display:contents">
-        <button type="button" class="check-pill" data-val="regular">Regular Drydock</button>
+        <button type="button" class="check-pill active passed" data-val="regular">Regular Drydock</button>
         <button type="button" class="check-pill" data-val="emergency">Emergency Drydock</button>
       </div>
       <!-- Row 2 — Job Order. Primary always-on (no data-check-name, no
@@ -2596,13 +2647,24 @@ function buildWorkChecklist(sec) {
     g.className = 'checklist-group';
     let html = `<div class="checklist-group-head">${escapeHtml(grp.title)}</div>`;
     for (const item of grp.items) {
+      const locName = `${sec.id}__${item.id}_loc`;
       html += `<div class="checklist-item work-item" data-check-name="${sec.id}__${item.id}">
         <div class="work-checkbox" data-check-name="${sec.id}__${item.id}" data-binary="true">
           <span class="work-check-mark">✓</span>
         </div>
         <div class="check-label">
           ${escapeHtml(item.label)}
-          ${item.locationCell ? `<div class="work-item-location"><select name="${sec.id}__${item.id}_loc"><option value="">— Select location —</option><option value="Portside">Portside</option><option value="Starboard side">Starboard side</option><option value="Center">Center</option><option value="Portside/Starboard side">Portside / Starboard side</option></select></div>` : ''}
+          ${item.locationCell ? `<div class="work-item-location">
+            <div class="loc-multiselect" data-loc-name="${locName}">
+              <button type="button" class="loc-multiselect-btn placeholder">— Select location —</button>
+              <input type="hidden" name="${locName}" value="">
+              <div class="loc-multiselect-panel">
+                <div class="loc-multiselect-option" data-val="Portside"><span class="lo-check"></span>Portside</div>
+                <div class="loc-multiselect-option" data-val="Starboard side"><span class="lo-check"></span>Starboard side</div>
+                <div class="loc-multiselect-option" data-val="Center"><span class="lo-check"></span>Center</div>
+              </div>
+            </div>
+          </div>` : ''}
         </div>
       </div>`;
     }
@@ -2611,6 +2673,56 @@ function buildWorkChecklist(sec) {
   }
 
   wrap.addEventListener('click', (e) => {
+    // v3.50: Location multi-select dropdown — open/close on button click,
+    // toggle options on option click. Tap order is preserved by storing
+    // it in the widget's dataset.order ("Portside,Center") and rebuilding
+    // the joined display + hidden input from that ordered list.
+    const locBtn = e.target.closest('.loc-multiselect-btn');
+    const locOpt = e.target.closest('.loc-multiselect-option');
+    if (locBtn) {
+      const ms = locBtn.parentElement;
+      const panel = ms.querySelector('.loc-multiselect-panel');
+      const wasOpen = panel.classList.contains('open');
+      // Close all other open panels first
+      document.querySelectorAll('.loc-multiselect-panel.open').forEach(p => p.classList.remove('open'));
+      document.querySelectorAll('.loc-multiselect-btn.open').forEach(b => b.classList.remove('open'));
+      if (!wasOpen) {
+        panel.classList.add('open');
+        locBtn.classList.add('open');
+      }
+      e.stopPropagation();
+      return;
+    }
+    if (locOpt) {
+      const ms = locOpt.closest('.loc-multiselect');
+      const val = locOpt.dataset.val;
+      const order = (ms.dataset.order || '').split('|').filter(Boolean);
+      const idx = order.indexOf(val);
+      if (idx >= 0) {
+        order.splice(idx, 1);
+        locOpt.classList.remove('checked');
+      } else {
+        order.push(val);
+        locOpt.classList.add('checked');
+      }
+      ms.dataset.order = order.join('|');
+      const joined = order.join('/');
+      const btn = ms.querySelector('.loc-multiselect-btn');
+      const hidden = ms.querySelector('input[type="hidden"]');
+      hidden.value = joined;
+      if (joined) {
+        btn.textContent = joined;
+        btn.classList.remove('placeholder');
+      } else {
+        btn.textContent = '— Select location —';
+        btn.classList.add('placeholder');
+      }
+      // Re-add the dropdown arrow (textContent wipes pseudo-element? no — ::after stays.
+      // But we did wipe text. arrow is positioned absolute so it's fine.)
+      e.stopPropagation();
+      return;
+    }
+
     const cb = e.target.closest('.work-checkbox');
     if (!cb) return;
     cb.classList.toggle('checked');
@@ -2886,6 +2998,13 @@ document.addEventListener('click', (e) => {
   toast('Tap "Mark as Complete" again to edit', 'info');
 }, true);
 
+// v3.50: Close any open location multiselect panel when clicking outside it.
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.loc-multiselect')) return; // click was inside one — let its handler manage
+  document.querySelectorAll('.loc-multiselect-panel.open').forEach(p => p.classList.remove('open'));
+  document.querySelectorAll('.loc-multiselect-btn.open').forEach(b => b.classList.remove('open'));
+});
+
 function resetSectionStatuses() {
   completedSections.clear();
   updateAllSectionStatuses();
@@ -2923,7 +3042,11 @@ function fillFormData(data) {
   }
   for (const trio of document.querySelectorAll('#entryForm .check-trio')) {
     const name = trio.dataset.checkName;
-    const val = data[name] || '';
+    let val = data[name] || '';
+    // v3.50: Drydock type defaults to "regular" when nothing saved (matches
+    // the Primary Job Order locked-on default). Applied here so loading an
+    // old draft or starting fresh both end up with Regular active.
+    if (name === 'workDone__typeRepair' && !val) val = 'regular';
     trio.querySelectorAll('.check-pill').forEach(p => p.classList.remove('active','passed','failed','na'));
     if (val) {
       const pill = trio.querySelector(`.check-pill[data-val="${val}"]`);
@@ -2936,6 +3059,30 @@ function fillFormData(data) {
   for (const cb of document.querySelectorAll('#entryForm .work-checkbox')) {
     const name = cb.dataset.checkName;
     cb.classList.toggle('checked', !!data[name]);
+  }
+  // v3.50: Sync location multi-select UI state from the hidden inputs that
+  // were just populated by the generic input loop above. The hidden value
+  // is the joined display string ("Portside/Center"); split on "/" to
+  // rebuild the tap-order and option-checked classes.
+  for (const ms of document.querySelectorAll('#entryForm .loc-multiselect')) {
+    const hidden = ms.querySelector('input[type="hidden"]');
+    const btn = ms.querySelector('.loc-multiselect-btn');
+    const joined = (hidden.value || '').trim();
+    // Old data shape from the <select> version may use "Portside/Starboard side"
+    // as a single token. Splitting on "/" turns it into ["Portside", "Starboard side"],
+    // which matches the new behavior exactly — same display, same writeback.
+    const parts = joined ? joined.split('/').map(s => s.trim()).filter(Boolean) : [];
+    ms.dataset.order = parts.join('|');
+    ms.querySelectorAll('.loc-multiselect-option').forEach(opt => {
+      opt.classList.toggle('checked', parts.indexOf(opt.dataset.val) !== -1);
+    });
+    if (parts.length > 0) {
+      btn.textContent = parts.join('/');
+      btn.classList.remove('placeholder');
+    } else {
+      btn.textContent = '— Select location —';
+      btn.classList.add('placeholder');
+    }
   }
   for (const sec of SCHEMA) {
     if (sec.type === 'rudderGrid' || sec.type === 'propellerGrid' || sec.type === 'tailshaftGrid') {
@@ -3618,6 +3765,14 @@ function buildSheetWrites(data) {
       for (const f of sec.fields) {
         let v = data[`${sec.id}__${f.id}`] || '';
         if (f.type === 'date' && v) v = formatDate(v);
+        // v3.50: decimal2 fields (GRT, etc.) must reach the sheet as numbers,
+        // not strings, or the 0.00 cell format won't apply. The browser-side
+        // formatter ensures the string already looks like "13.50"; we just
+        // parse it back to a number here. Empty values stay as ''.
+        if (f.decimal2 && v) {
+          const num = parseFloat(v);
+          if (Number.isFinite(num)) v = num;
+        }
         writes.push({ sheet: sec.sheet, range: f.cell, value: v });
       }
     } else if (sec.type === 'rudderGrid') {
@@ -3887,6 +4042,16 @@ async function syncEntry(entry) {
     console.warn('Transmittal auto-detect failed (continuing without it):', transErr);
   }
 
+  // v3.50: force 2-decimal display on cells that should always show .00
+  // (e.g. GRT — Sheets defaults to General format which strips trailing zeros,
+  // so "13.50" displays as "13.5"). Failure here is non-fatal; the sync as
+  // a whole already wrote the values, this only changes their display format.
+  try {
+    await applyNumberFormats(newFile.id);
+  } catch (fmtErr) {
+    console.warn('Number format application failed (continuing without it):', fmtErr);
+  }
+
   let pdfFileId = null, pdfFileName = null;
 
   let perTabPdfs = [];
@@ -4094,6 +4259,66 @@ async function applyTransmittalInclusions(data, spreadsheetId) {
   }
 
   return inc.excludedTabs;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v3.50: force 2-decimal display on specific cells (e.g. GRT)
+// ─────────────────────────────────────────────────────────────────────────────
+// Sheets' default "General" format strips trailing zeros, so a value of 13.50
+// renders as 13.5. Apply numberFormat: { type: 'NUMBER', pattern: '0.00' } to
+// each cell in TWO_DECIMAL_CELLS so 13.5 renders as 13.50 and 1234 renders as
+// 1234.00. Add more entries here as the need arises.
+const TWO_DECIMAL_CELLS = [
+  { sheet: 'SHIPS DATA', a1: 'B22' }   // GRT
+];
+
+async function applyNumberFormats(spreadsheetId) {
+  if (TWO_DECIMAL_CELLS.length === 0) return;
+
+  // Fetch sheet id-by-title map (needed for repeatCell which works in grid coords)
+  const meta = await gFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title))`
+  );
+  const sidByTitle = {};
+  for (const s of meta.sheets || []) {
+    sidByTitle[s.properties.title] = s.properties.sheetId;
+  }
+
+  function a1ToRowCol(a1) {
+    const m = /^([A-Z]+)(\d+)$/.exec(a1.toUpperCase());
+    if (!m) return null;
+    let col = 0;
+    for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+    return { row: parseInt(m[2], 10) - 1, col: col - 1 };
+  }
+
+  const requests = [];
+  for (const entry of TWO_DECIMAL_CELLS) {
+    const sid = sidByTitle[entry.sheet];
+    const rc = a1ToRowCol(entry.a1);
+    if (sid === undefined || !rc) continue;
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sid,
+          startRowIndex: rc.row, endRowIndex: rc.row + 1,
+          startColumnIndex: rc.col, endColumnIndex: rc.col + 1
+        },
+        cell: { userEnteredFormat: { numberFormat: { type: 'NUMBER', pattern: '0.00' } } },
+        fields: 'userEnteredFormat.numberFormat'
+      }
+    });
+  }
+
+  if (requests.length === 0) return;
+
+  await gFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ requests })
+    }
+  );
 }
 
 async function renumberWorkDoneCategories(data, spreadsheetId) {
