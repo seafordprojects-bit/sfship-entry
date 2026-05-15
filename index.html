@@ -1221,7 +1221,7 @@
     <div class="setting-group">
       <h4>About this app</h4>
       <p>Built for offline vessel data entry across Ships Data, Rudder, Tailshaft, Chain Calibration, Test Report, Propeller, and Work Done. Saves locally on this phone, syncs to your Drive when online.</p>
-      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.50 — Rolled back to two-tab Work Done (WORK DONE 1 + WORK DONE 2). Added Primary/Additional Job Order picker (B12/B13). Transmittal auto-detect: empty sections are hidden and remaining items renumbered.</p>
+      <p style="font-size:13px; color: var(--ink-soft); font-style: italic; margin-top: 6px;">v3.50 — Rolled back to two-tab Work Done. Primary/Additional Job Order picker (B12/B13). Transmittal auto-detect: empty sections hidden + items renumbered. Signature spacer at row 42 keeps signatures anchored to page bottom.</p>
     </div>
 
     <div class="setting-group">
@@ -4149,16 +4149,41 @@ async function buildHideRowsRequests(data, spreadsheetId) {
         rowsBySheet[grpSheet].push(grp.headerRow);
       }
     }
+    // v3.50: per-tab signature spacer. After the user added an empty row 42
+    // on both WORK DONE 1 and WORK DONE 2 (signature shifted from rows 42-47
+    // down to 43-48), we inflate that empty row 42 to compensate for hidden
+    // content rows so the signature block stays anchored to the bottom of
+    // the page. Formula: spacer_height = (hidden_count + 1) × 21px. The +1
+    // preserves a natural ~21px gap above the signature even when nothing
+    // is hidden.
+    const SIGNATURE_SPACERS = {
+      'WORK DONE 1': { spacerRow: 42 },
+      'WORK DONE 2': { spacerRow: 42 }
+    };
+    const DEFAULT_ROW_HEIGHT = 21;
+
     for (const [sheetName, rows] of Object.entries(rowsBySheet)) {
       const sid = sheetIdByName[sheetName];
       if (sid !== undefined) {
         requests.push(...rowRangesToHideRequests(sid, rows));
-        // v3.50: removed SPACER_ROW expansion. Was inflating row 48 on the
-        // consolidated WORK DONE tab so signature #2 stayed anchored to the
-        // bottom of page 2 when groups above were hidden. With the two-tab
-        // structure (WORK DONE 1 / WORK DONE 2), each tab is its own short
-        // page — when groups hide, the signature simply floats up within the
-        // single page. No spacer compensation needed.
+
+        const spacer = SIGNATURE_SPACERS[sheetName];
+        if (spacer) {
+          const hiddenCount = new Set(rows).size;
+          const newHeight = DEFAULT_ROW_HEIGHT * (1 + hiddenCount);
+          requests.push({
+            updateDimensionProperties: {
+              range: {
+                sheetId: sid,
+                dimension: 'ROWS',
+                startIndex: spacer.spacerRow - 1,
+                endIndex: spacer.spacerRow
+              },
+              properties: { pixelSize: newHeight },
+              fields: 'pixelSize'
+            }
+          });
+        }
       }
     }
   }
