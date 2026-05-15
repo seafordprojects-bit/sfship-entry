@@ -2562,24 +2562,22 @@ function buildWorkChecklist(sec) {
   typeDiv.className = 'checklist-group';
   typeDiv.innerHTML = `
     <div class="checklist-group-head">Type of Repair</div>
-    <div class="checklist-item">
-      <div class="check-trio" data-check-name="workDone__typeRepair" data-binary="true">
-        <button type="button" class="check-pill" data-val="regular">Regular</button>
-        <button type="button" class="check-pill" data-val="emergency">Emergency</button>
+    <div style="display:grid; grid-template-columns: auto auto auto; gap:8px 10px; padding:10px; align-items:center; justify-content:start">
+      <!-- Row 1 — Drydock type. display:contents on check-trio lets its
+           child pills participate in the parent grid for column alignment. -->
+      <div class="check-label" style="padding-top:0">Drydock type</div>
+      <div class="check-trio" data-check-name="workDone__typeRepair" data-binary="true" style="display:contents">
+        <button type="button" class="check-pill" data-val="regular">Regular Drydock</button>
+        <button type="button" class="check-pill" data-val="emergency">Emergency Drydock</button>
       </div>
-      <div class="check-label">Drydock type</div>
-    </div>
-    <div class="checklist-item">
-      <div style="display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0">
-        <!-- v3.50: Primary Job Order is always on, not interactive. No data-check-name
-             because it's not stored in form data — the sheet writeback hardcodes
-             B12 = TRUE for every Work Done sync. -->
-        <span class="pill-locked" title="Primary Job Order is always on">Primary Job Order ✓</span>
-        <div class="check-trio" data-check-name="workDone__additionalJobOrder" data-binary="true">
-          <button type="button" class="check-pill" data-val="checked">Additional Job Order</button>
-        </div>
+      <!-- Row 2 — Job Order. Primary always-on (no data-check-name, no
+           data binding; B12 = TRUE hardcoded in writeback). Additional is
+           a single-pill trio that toggles. -->
+      <div class="check-label" style="padding-top:0">Work Done</div>
+      <span class="pill-locked" title="Primary Job Order is always on">Primary Job Order ✓</span>
+      <div class="check-trio" data-check-name="workDone__additionalJobOrder" data-binary="true" style="display:contents">
+        <button type="button" class="check-pill" data-val="checked">Add Job Order</button>
       </div>
-      <div class="check-label">Job order type · Primary is locked on; tap Additional if both apply</div>
     </div>
   `;
   typeDiv.addEventListener('click', (e) => {
