@@ -3232,7 +3232,27 @@ async function saveEntry(asComplete) {
     entry = await dbGet(editingId);
     if (!entry) entry = { id: editingId, createdAt: new Date().toISOString() };
   } else {
-    entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2,8), createdAt: new Date().toISOString() };
+    // v3.50: deduplicate by project number. If there's already a local DRAFT
+    // for this project, reuse that row (update it) instead of creating a
+    // second one. Prevents the "two test 1 entries" problem where saving the
+    // same project twice piles up duplicate rows.
+    // Only matches drafts (status='draft'); pending/synced/error stay alone
+    // since they have separate semantics (queue items vs editable drafts).
+    let existing = null;
+    try {
+      const all = await dbAll();
+      existing = all.find(e =>
+        e.status === 'draft' &&
+        e.data &&
+        ((e.data['shipsData__projectNo'] || '').trim() === projectNo)
+      ) || null;
+    } catch (e) { console.warn('dedup lookup failed, creating new entry:', e); }
+    if (existing) {
+      entry = existing;
+      editingId = entry.id; // makes future Save Drafts in this session update the same row
+    } else {
+      entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2,8), createdAt: new Date().toISOString() };
+    }
   }
   entry.updatedAt = new Date().toISOString();
   entry.data = data;
