@@ -1493,6 +1493,24 @@
   </div>
 </div>
 
+<!-- ════════ Replace-Confirm Modal (v3.50) ════════ -->
+<!-- Shown when Mark Complete detects an existing Drive file for the same
+     project. User must type the project number to confirm replacement.
+     Reuses the cloudModal CSS for layout. -->
+<div id="replaceConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:200; align-items:center; justify-content:center; padding:14px">
+  <div style="background:var(--paper); border:1px solid var(--line); border-radius:6px; max-width:480px; width:100%; max-height:90vh; overflow-y:auto; padding:20px; font-family:Calibri,sans-serif">
+    <div style="font-size:18px; font-weight:600; color:var(--red); margin-bottom:8px">⚠️ Project Already Synced</div>
+    <div id="replaceConfirmBody" style="font-size:14px; color:var(--ink); line-height:1.5; margin-bottom:14px"></div>
+    <div style="font-size:13px; color:var(--ink-soft); margin-bottom:6px">Type the project number to confirm:</div>
+    <input type="text" id="replaceConfirmInput" autocomplete="off" style="width:100%; padding:8px 10px; border:1.5px solid var(--line); background:var(--paper); font-size:15px; border-radius:3px; font-family:Calibri,sans-serif; margin-bottom:14px" placeholder="e.g. 26-22-005">
+    <div id="replaceConfirmError" style="font-size:13px; color:var(--red); margin-bottom:10px; display:none"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end">
+      <button type="button" class="btn btn-secondary" id="replaceConfirmCancel" style="padding:8px 14px">Cancel</button>
+      <button type="button" class="btn btn-danger" id="replaceConfirmGo" style="padding:8px 14px">Replace existing</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    FORM SCHEMA — defines every section, field, and target cell in template
@@ -4182,6 +4200,44 @@ async function findExistingProjectSheet(targetFolderId, projectNo) {
   return match || null;
 }
 
+// v3.50: delete (trash) every file in a vessel folder whose name starts with
+// the project number — both the synced spreadsheet AND any per-tab PDFs.
+// Called when the user has explicitly confirmed they want to replace an
+// existing sync via the replace-confirm modal.
+async function deleteExistingProjectFiles(targetFolderId, projectNo) {
+  if (!targetFolderId || !projectNo) return { trashed: 0 };
+  const safePrefix = projectNo.replace(/'/g, "\\'");
+  const q = [
+    `'${targetFolderId}' in parents`,
+    `name contains '${safePrefix}'`,
+    `trashed = false`
+  ].join(' and ');
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}`
+            + `&fields=files(id,name,mimeType)&pageSize=100`
+            + `&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const res = await gFetch(url);
+  const files = (res && res.files) || [];
+  const matches = files.filter(f =>
+    (f.name || '').trim().toLowerCase().startsWith(projectNo.trim().toLowerCase()) &&
+    // Skip folders — only delete files (sheets, PDFs)
+    f.mimeType !== 'application/vnd.google-apps.folder'
+  );
+  let trashedCount = 0;
+  for (const f of matches) {
+    try {
+      await gFetch(
+        `https://www.googleapis.com/drive/v3/files/${f.id}?supportsAllDrives=true`,
+        { method: 'PATCH', body: JSON.stringify({ trashed: true }) }
+      );
+      trashedCount++;
+    } catch (e) {
+      console.warn('Could not trash ' + f.name + ':', e);
+    }
+  }
+  console.log(`deleteExistingProjectFiles: trashed ${trashedCount} files matching "${projectNo}"`);
+  return { trashed: trashedCount };
+}
+
 async function syncEntry(entry) {
   if (!config.templateId) throw new Error('Master Template Sheet ID not set in Setup');
   const data = entry.data;
@@ -4218,12 +4274,13 @@ async function syncEntry(entry) {
           hour: '2-digit', minute: '2-digit'
         }) : 'an earlier date';
         const err = new Error(
-          `Project ${projectNo} was already synced by ${who} on ${whenStr}. ` +
-          `Open Drive, delete the existing "${existing.name}" file, then sync again.`
+          `Project ${projectNo} was already synced by ${who} on ${whenStr}.`
         );
         err.isDuplicateSync = true;
         err.existingFileId = existing.id;
         err.existingFileName = existing.name;
+        err.existingWho = who;
+        err.existingWhen = whenStr;
         throw err;
       }
     } catch (dupErr) {
@@ -4231,6 +4288,18 @@ async function syncEntry(entry) {
       // from the lookup itself (those shouldn't block the sync).
       if (dupErr.isDuplicateSync) throw dupErr;
       console.warn('Duplicate check failed (allowing sync to continue):', dupErr);
+    }
+  }
+
+  // v3.50: when forceOverride is true (user confirmed via the replace-confirm
+  // modal), delete the existing Drive file BEFORE creating the new one so we
+  // don't end up with two files. Also clean up any sibling PDFs in the same
+  // folder that match this project number.
+  if (entry.forceOverride && targetFolderId && projectNo) {
+    try {
+      await deleteExistingProjectFiles(targetFolderId, projectNo);
+    } catch (delErr) {
+      console.warn('Force-override pre-delete failed (continuing):', delErr);
     }
   }
 
@@ -4729,17 +4798,28 @@ async function trySync() {
         await dbPut(entry);
 
         // v3.50: post-sync cleanup. Mark Complete completed successfully, so:
-        //   1. Delete the cloud draft (no longer needed — vessel is in Drive)
+        //   1. ARCHIVE the cloud draft (keep for 30 days as recovery option;
+        //      auto-cleaned by Apps Script daily trigger). Replaces the
+        //      v3.50-initial behavior of deleting outright — this way the
+        //      user can Pull & Edit the cloud draft if a mistake is found
+        //      after the Drive sync.
         //   2. Delete the local entry (no longer needed — it's now a real
-        //      synced spreadsheet, visible in the Shared Drive list)
-        // Failure on either delete is non-fatal — the sync itself succeeded.
+        //      synced spreadsheet, visible in the Shared Drive list).
+        // Failure on either is non-fatal — the sync itself succeeded.
         try {
-          const { projectNo } = getProjectAndVessel(entry.data || {});
+          const { projectNo, vesselName } = getProjectAndVessel(entry.data || {});
           if (projectNo) {
-            await cloudCall('deleteDraft', { projectNo: projectNo });
+            // v3.50: send full form data so archiveDraft can upsert (create
+            // the row if no cloud draft existed — happens when user goes
+            // Entry → Mark Complete without ever tapping Save Draft).
+            await cloudCall('archiveDraft', {
+              projectNo: projectNo,
+              vesselName: vesselName,
+              jsonBlob: JSON.stringify(entry.data || {})
+            });
           }
         } catch (cleanupErr) {
-          console.warn('Cloud draft delete failed (sync succeeded, ignoring):', cleanupErr);
+          console.warn('Cloud draft archive failed (sync succeeded, ignoring):', cleanupErr);
         }
         try {
           await dbDelete(entry.id);
@@ -4749,9 +4829,23 @@ async function trySync() {
 
         okCount++;
       } catch (err) {
-        entry.status = 'error';
-        entry.errorMsg = err.message || String(err);
-        await dbPut(entry);
+        // v3.50: duplicate-sync errors get a special status so the UI can
+        // show a confirm-replace prompt instead of just a red error banner.
+        if (err.isDuplicateSync) {
+          entry.status = 'awaiting-replace-confirm';
+          entry.errorMsg = err.message || String(err);
+          entry.duplicateMeta = {
+            existingFileId: err.existingFileId,
+            existingFileName: err.existingFileName,
+            who: err.existingWho || 'unknown',
+            when: err.existingWhen || ''
+          };
+          await dbPut(entry);
+        } else {
+          entry.status = 'error';
+          entry.errorMsg = err.message || String(err);
+          await dbPut(entry);
+        }
         failCount++;
       }
       renderQueue();
@@ -4957,8 +5051,8 @@ async function renderQueue() {
   // v3.50: banner visibility — show only if there are pending/error/syncing
   // entries. Synced entries also count so the user can find "Clear Synced".
   const banner = document.getElementById('localQueueBanner');
-  const activeCount = all.filter(e => e.status === 'pending' || e.status === 'error' || e.status === 'syncing').length;
-  const errorCount = all.filter(e => e.status === 'error').length;
+  const activeCount = all.filter(e => e.status === 'pending' || e.status === 'error' || e.status === 'syncing' || e.status === 'awaiting-replace-confirm').length;
+  const errorCount = all.filter(e => e.status === 'error' || e.status === 'awaiting-replace-confirm').length;
   if (banner) {
     if (all.length === 0) {
       banner.style.display = 'none';
@@ -5004,7 +5098,17 @@ async function renderQueue() {
       const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
       const company = d['shipsData__companyName'] || '';
       const created = new Date(e.createdAt).toLocaleString();
-      const statusLabel = { pending:'Pending', synced:'Synced', error:'Failed', syncing:'Syncing…' }[e.status] || e.status;
+      const statusLabel = {
+        pending: 'Pending',
+        synced: 'Synced',
+        error: 'Failed',
+        syncing: 'Syncing…',
+        'awaiting-replace-confirm': '⚠️ Replace?'
+      }[e.status] || e.status;
+      // v3.50: duplicate-pending entries get a yellow "Resolve" button that
+      // opens the confirm-replace modal. They DON'T get a normal Retry
+      // button (retry would just re-hit the duplicate block).
+      const isDup = e.status === 'awaiting-replace-confirm';
       return `<div class="list-item ${e.status}" data-id="${e.id}">
         <div class="list-head">
           <span class="list-proj">${escapeHtml(proj)}</span>
@@ -5017,7 +5121,8 @@ async function renderQueue() {
         ${(e.perTabPdfs && e.perTabPdfs.length) ? `<div class="list-meta" style="margin-top:1px"><em>📑 ${e.perTabPdfs.length} per-tab PDFs in vessel folder</em></div>` : ''}
         ${e.errorMsg ? `<div class="list-error-msg">${escapeHtml(e.errorMsg)}</div>` : ''}
         <div class="list-actions">
-          ${e.status === 'pending' || e.status === 'error' ? `<button data-act="retry" data-id="${e.id}">Retry Sync</button>` : ''}
+          ${isDup ? `<button class="primary" data-act="resolve-duplicate" data-id="${e.id}">Resolve</button>` : ''}
+          ${(e.status === 'pending' || e.status === 'error') ? `<button data-act="retry" data-id="${e.id}">Retry Sync</button>` : ''}
           ${e.fileId ? `<button data-act="open" data-id="${e.id}">Open Sheet</button>` : ''}
           ${e.pdfFileId ? `<button data-act="open-pdf" data-id="${e.id}">Open PDF</button>` : ''}
           ${e.status !== 'syncing' ? `<button data-act="back-to-draft" data-id="${e.id}">Back to Draft</button>` : ''}
@@ -5148,49 +5253,17 @@ function renderDriveQueueList(sheets) {
       <div class="list-meta">Synced by <strong>${escapeHtml(who)}</strong> · ${escapeHtml(when)}</div>
       <div class="list-actions">
         <button data-drive-open="${escapeHtml(url)}">Open Sheet</button>
-        <button data-drive-regen="${escapeHtml(s.id)}" data-drive-name="${escapeHtml(s.name)}">↻ Regenerate PDFs</button>
       </div>
     </div>`;
   }).join('');
   list.querySelectorAll('button[data-drive-open]').forEach(b => {
     b.addEventListener('click', () => window.open(b.dataset.driveOpen, '_blank'));
   });
-  // v3.50: Regenerate PDFs button — re-runs the PDF pipeline on a synced
-  // sheet. Use after editing the synced spreadsheet directly to fix a
-  // mistake (e.g., wrong vessel measurement). Replaces all per-tab PDFs in
-  // the vessel folder with refreshed ones.
-  list.querySelectorAll('button[data-drive-regen]').forEach(b => {
-    b.addEventListener('click', () => regeneratePdfsViaApp(b.dataset.driveRegen, b.dataset.driveName, b));
-  });
-}
-
-async function regeneratePdfsViaApp(spreadsheetId, name, btn) {
-  if (!isOnline) { toast('Offline — can\'t regenerate', 'error'); return; }
-  if (!confirm(`Regenerate ALL PDFs for "${name}"?\n\nThis will replace the existing PDFs in the vessel folder. Old PDFs are lost.`)) return;
-
-  const origText = btn.textContent;
-  btn.textContent = '⟳ Regenerating…';
-  btn.disabled = true;
-  try {
-    const result = await cloudCall('regeneratePdfs', { spreadsheetId: spreadsheetId });
-    if (!result || !result.ok) {
-      throw new Error(result && result.error ? result.error : 'unknown error');
-    }
-    const n = (result.uploaded || []).length;
-    const errs = (result.errors || []).length;
-    if (errs > 0) {
-      toast(`Regenerated ${n} PDFs · ${errs} failed — check Apps Script logs`, 'info');
-    } else {
-      toast(`Regenerated ${n} PDFs ✓`, 'success');
-    }
-    // Refresh the shared list so modifiedTime is current
-    setTimeout(() => loadDriveQueueView(true), 1500);
-  } catch (err) {
-    toast('Regenerate failed: ' + (err.message || String(err)), 'error');
-  } finally {
-    btn.textContent = origText;
-    btn.disabled = false;
-  }
+  // v3.50: Regenerate PDFs button removed. The recommended fix-mistake flow
+  // is now: open Cloud Drafts (archived for 30 days after Mark Complete) ->
+  // Pull & Edit -> fix data -> Mark Complete (creates a new Drive sync).
+  // For inline cell tweaks, the user can still Open Sheet and edit directly,
+  // and run regeneratePdfsForSheet manually from the Apps Script editor.
 }
 
 
@@ -5223,13 +5296,78 @@ async function onListAction(e) {
     if (!confirm('Move back to drafts? Will not be uploaded.')) return;
     entry.status = 'draft'; await dbPut(entry);
     renderDrafts(); renderQueue(); refreshBadges();
+  } else if (act === 'resolve-duplicate') {
+    // v3.50: open the replace-confirm modal for this entry
+    openReplaceConfirmModal(entry);
   }
 }
 
+// v3.50: Replace-Confirm Modal — shown when Mark Complete detects an existing
+// Drive file for the same project. Requires the user to type the project
+// number to confirm. On confirm, sets forceOverride on the entry and triggers
+// sync — the sync code will pre-delete the existing files via
+// deleteExistingProjectFiles.
+let _replaceConfirmCurrentEntry = null;
+function openReplaceConfirmModal(entry) {
+  _replaceConfirmCurrentEntry = entry;
+  const modal = document.getElementById('replaceConfirmModal');
+  const body = document.getElementById('replaceConfirmBody');
+  const input = document.getElementById('replaceConfirmInput');
+  const err = document.getElementById('replaceConfirmError');
+  const data = entry.data || {};
+  const projectNo = (data['shipsData__projectNo'] || '').trim();
+  const dm = entry.duplicateMeta || {};
+  body.innerHTML =
+    `Project <strong>${escapeHtml(projectNo)}</strong> was already synced<br>` +
+    `by <strong>${escapeHtml(dm.who || 'unknown')}</strong>` +
+    (dm.when ? ` on <strong>${escapeHtml(dm.when)}</strong>` : '') + '.<br><br>' +
+    `<strong>Replacing</strong> will move the existing Drive files (the synced sheet + ` +
+    `all PDFs starting with this project number) to Drive trash, then create fresh ones from your form data.`;
+  input.value = '';
+  err.style.display = 'none';
+  modal.style.display = 'flex';
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeReplaceConfirmModal() {
+  document.getElementById('replaceConfirmModal').style.display = 'none';
+  _replaceConfirmCurrentEntry = null;
+}
+
+document.getElementById('replaceConfirmCancel').addEventListener('click', closeReplaceConfirmModal);
+
+document.getElementById('replaceConfirmGo').addEventListener('click', async () => {
+  const entry = _replaceConfirmCurrentEntry;
+  if (!entry) return;
+  const input = document.getElementById('replaceConfirmInput');
+  const err = document.getElementById('replaceConfirmError');
+  const projectNo = ((entry.data || {})['shipsData__projectNo'] || '').trim();
+  const typed = input.value.trim();
+  if (typed !== projectNo) {
+    err.textContent = `Doesn't match. Type "${projectNo}" exactly to confirm.`;
+    err.style.display = 'block';
+    return;
+  }
+  // Confirmed — flip entry to forceOverride and re-sync
+  entry.forceOverride = true;
+  entry.status = 'pending';
+  delete entry.errorMsg;
+  delete entry.duplicateMeta;
+  await dbPut(entry);
+  closeReplaceConfirmModal();
+  toast('Replacing existing files…', 'info');
+  renderQueue();
+  if (isOnline && accessToken) trySync();
+});
+
+// v3.50: include awaiting-replace-confirm in active queue badge
 async function refreshBadges() {
   const all = await dbAll();
   const drafts = all.filter(e => e.status === 'draft').length;
-  const queueActive = all.filter(e => e.status === 'pending' || e.status === 'error' || e.status === 'syncing').length;
+  const queueActive = all.filter(e =>
+    e.status === 'pending' || e.status === 'error' ||
+    e.status === 'syncing' || e.status === 'awaiting-replace-confirm'
+  ).length;
   const dBadge = $('#draftsBadge');
   const qBadge = $('#queueBadge');
   if (drafts > 0) { dBadge.textContent = drafts; dBadge.style.display = 'inline-block'; }
@@ -5867,9 +6005,21 @@ async function renderCloudDraftsList() {
       const lockedByMe = d.locked && d.lockedBy === myEmail;
       const lastMod = d.lastModified ? new Date(d.lastModified).toLocaleString() : '—';
       const editor = d.lastEditor || '—';
+      // v3.50: archived = synced-to-Drive, kept 30 days for recovery
+      const isArchived = !!d.archivedAt;
+      let daysLeft = null;
+      if (isArchived) {
+        const archivedMs = new Date(d.archivedAt).getTime();
+        const ageDays = (Date.now() - archivedMs) / (24 * 60 * 60 * 1000);
+        daysLeft = Math.max(0, Math.ceil(30 - ageDays));
+      }
       let badgeHtml = '';
       let actionBtns = '';
-      if (lockedByOther) {
+      if (isArchived) {
+        badgeHtml = `<span class="list-status synced" style="opacity:0.8">✓ Done · ${daysLeft}d left</span>`;
+        // Archived drafts only allow Pull & Edit (revert) and Delete (early cleanup)
+        actionBtns = `<button class="primary cloud-pull-archived" data-proj="${escapeHtml(d.projectNo)}">Pull & Edit (revert)</button>`;
+      } else if (lockedByOther) {
         badgeHtml = '<span class="list-status error">🔒 Locked</span>';
         actionBtns = `<button class="cloud-pull-readonly" data-proj="${escapeHtml(d.projectNo)}">View Read-Only</button>`;
       } else if (lockedByMe) {
@@ -5882,7 +6032,10 @@ async function renderCloudDraftsList() {
       const lockMeta = lockedByOther
         ? `<div style="font-size:13px; color: var(--red); margin-top:3px;">🔒 Being edited by ${escapeHtml(d.lockedBy)}</div>`
         : '';
-      return `<div class="list-item cloud${lockedByOther ? ' locked' : ''}">
+      const archiveMeta = isArchived
+        ? `<div style="font-size:12px; color: var(--ink-soft); margin-top:3px; font-style:italic;">Synced to Drive — auto-delete in ${daysLeft} day${daysLeft===1?'':'s'}</div>`
+        : '';
+      return `<div class="list-item cloud${lockedByOther ? ' locked' : ''}" style="${isArchived ? 'opacity:0.85; background:var(--bone);' : ''}">
         <div class="list-head">
           <span class="list-proj">${escapeHtml(d.projectNo)}</span>
           ${badgeHtml}
@@ -5890,6 +6043,7 @@ async function renderCloudDraftsList() {
         <div class="list-vessel">${escapeHtml(d.vesselName || 'Untitled')}</div>
         <div class="list-meta">Last edit: ${escapeHtml(editor)} · ${lastMod}</div>
         ${lockMeta}
+        ${archiveMeta}
         <div class="list-actions">
           ${actionBtns}
           <button class="danger cloud-delete" data-proj="${escapeHtml(d.projectNo)}" data-vessel="${escapeHtml(d.vesselName || '')}">Delete</button>
@@ -5899,6 +6053,20 @@ async function renderCloudDraftsList() {
 
     wrap.querySelectorAll('.cloud-pull').forEach(b => {
       b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'edit'));
+    });
+    // v3.50: Pull & Edit (revert) for archived drafts — same flow as normal
+    // pull but with a confirm explaining the consequence.
+    wrap.querySelectorAll('.cloud-pull-archived').forEach(b => {
+      b.addEventListener('click', () => {
+        const proj = b.dataset.proj;
+        const msg =
+          'Revert this synced project back to a draft?\n\n' +
+          'You\'ll be able to edit the form again. When you Mark Complete, a NEW Drive file will be created.\n\n' +
+          '⚠️ The existing Drive file for this project may need to be deleted manually to avoid duplicates ' +
+          '(the app will block re-syncing if the old file still exists).\n\n' +
+          'Continue?';
+        if (confirm(msg)) doPullDraft(proj, 'edit');
+      });
     });
     wrap.querySelectorAll('.cloud-pull-readonly').forEach(b => {
       b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'readonly'));
