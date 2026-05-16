@@ -1226,13 +1226,34 @@
   <!-- QUEUE VIEW -->
   <section class="view" id="view-queue">
     <div class="helper">
-      The queue shows entries marked complete. They auto-sync when online — or tap <strong>Sync Now</strong> to push them up.
+      Everything anyone on the team has synced to the shared Drive folder. Use this to avoid double-syncing the same vessel.
     </div>
-    <div style="display:flex; gap:8px; margin-bottom:14px">
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap">
       <button class="btn btn-primary" id="syncNowBtn">Sync Now</button>
-      <button class="btn btn-danger" id="clearSyncedBtn">Clear Synced</button>
+      <button class="btn btn-secondary" id="refreshDriveQueueBtn">↻ Refresh</button>
     </div>
-    <div id="queueList"></div>
+    <div id="driveQueueList"></div>
+
+    <!-- v3.50: local queue banner. Hidden unless there are pending/error/
+         syncing entries. Tap to expand and see actions (Retry, Back to
+         Draft, Delete). Old "always-visible" queue moved into this
+         collapsible to keep the main view focused on shared Drive state. -->
+    <div id="localQueueBanner" style="display:none; margin-top:18px; border:1px solid var(--line); border-radius:4px; overflow:hidden">
+      <button type="button" id="localQueueBannerHead" style="
+        width:100%; padding:11px 14px; background:var(--bone);
+        border:none; cursor:pointer; display:flex; align-items:center;
+        justify-content:space-between; font-family:Calibri,sans-serif;
+        font-size:14px; color:var(--ink); gap:8px; text-align:left">
+        <span><strong id="localQueueBannerCount">0</strong> entr<span id="localQueueBannerSuffix">y</span> waiting to sync</span>
+        <span id="localQueueBannerCaret" style="font-size:12px; color:var(--ink-soft)">▾</span>
+      </button>
+      <div id="localQueueBannerBody" style="display:none; padding:8px 10px 4px; background:var(--paper)">
+        <div style="display:flex; gap:8px; margin-bottom:8px">
+          <button class="btn btn-secondary" id="clearSyncedBtn" style="font-size:13px; padding:6px 10px">Clear Synced</button>
+        </div>
+        <div id="queueList"></div>
+      </div>
+    </div>
   </section>
 
   <!-- SETTINGS VIEW (v3.36 PIN-protected + sign-in here) -->
@@ -3973,6 +3994,31 @@ async function findVesselFolder(parentFolderId, projectNo) {
   return startsMatch ? startsMatch.id : null;
 }
 
+// v3.50: duplicate-sync detection. Searches the target vessel folder for any
+// existing Google Sheet whose name starts with the same project number. If
+// found, returns metadata about who synced it and when so the sync can be
+// blocked with a clear error message. Returns null when nothing exists.
+async function findExistingProjectSheet(targetFolderId, projectNo) {
+  if (!targetFolderId || !projectNo) return null;
+  const safePrefix = projectNo.replace(/'/g, "\\'");
+  const q = [
+    `'${targetFolderId}' in parents`,
+    `mimeType = 'application/vnd.google-apps.spreadsheet'`,
+    `name contains '${safePrefix}'`,
+    `trashed = false`
+  ].join(' and ');
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}`
+            + `&fields=files(id,name,modifiedTime,createdTime,lastModifyingUser(emailAddress,displayName),owners(emailAddress,displayName))`
+            + `&pageSize=20&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const res = await gFetch(url);
+  const files = (res && res.files) || [];
+  // Match by project number prefix — same convention used in findVesselFolder.
+  const match = files.find(f =>
+    (f.name || '').trim().toLowerCase().startsWith(projectNo.trim().toLowerCase())
+  );
+  return match || null;
+}
+
 async function syncEntry(entry) {
   if (!config.templateId) throw new Error('Master Template Sheet ID not set in Setup');
   const data = entry.data;
@@ -3987,6 +4033,41 @@ async function syncEntry(entry) {
       if (matchedFolderId) targetFolderId = matchedFolderId;
     } catch (e) {
       console.warn('Vessel folder search failed, using fallback folder', e);
+    }
+  }
+
+  // v3.50: duplicate-sync block. If another staff member (or this device,
+  // previously) already synced this project number, abort with a clear
+  // message naming who synced and when. The user must manually delete the
+  // existing Drive file before re-syncing. Bypassed if entry.forceOverride
+  // is set (currently not exposed in UI — reserved for future "force
+  // re-sync" button).
+  if (targetFolderId && projectNo && !entry.forceOverride) {
+    try {
+      const existing = await findExistingProjectSheet(targetFolderId, projectNo);
+      if (existing) {
+        const who = (existing.lastModifyingUser && (existing.lastModifyingUser.emailAddress || existing.lastModifyingUser.displayName))
+                 || (existing.owners && existing.owners[0] && (existing.owners[0].emailAddress || existing.owners[0].displayName))
+                 || 'unknown';
+        const when = existing.modifiedTime || existing.createdTime || '';
+        const whenStr = when ? new Date(when).toLocaleString('en-PH', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        }) : 'an earlier date';
+        const err = new Error(
+          `Project ${projectNo} was already synced by ${who} on ${whenStr}. ` +
+          `Open Drive, delete the existing "${existing.name}" file, then sync again.`
+        );
+        err.isDuplicateSync = true;
+        err.existingFileId = existing.id;
+        err.existingFileName = existing.name;
+        throw err;
+      }
+    } catch (dupErr) {
+      // Re-throw duplicate errors; only swallow network/permission errors
+      // from the lookup itself (those shouldn't block the sync).
+      if (dupErr.isDuplicateSync) throw dupErr;
+      console.warn('Duplicate check failed (allowing sync to continue):', dupErr);
     }
   }
 
@@ -4510,6 +4591,22 @@ $('#clearSyncedBtn').addEventListener('click', async () => {
   renderQueue(); refreshBadges();
 });
 
+// v3.50: refresh shared Drive queue view (force, bypass cache)
+const refreshDriveBtn = document.getElementById('refreshDriveQueueBtn');
+if (refreshDriveBtn) refreshDriveBtn.addEventListener('click', () => loadDriveQueueView(true));
+
+// v3.50: local queue banner expand/collapse
+const localQueueHead = document.getElementById('localQueueBannerHead');
+if (localQueueHead) {
+  localQueueHead.addEventListener('click', () => {
+    const body = document.getElementById('localQueueBannerBody');
+    const caret = document.getElementById('localQueueBannerCaret');
+    const isOpen = body.style.display === 'block';
+    body.style.display = isOpen ? 'none' : 'block';
+    if (caret) caret.textContent = isOpen ? '▾' : '▴';
+  });
+}
+
 /* =========================================================================
    LIST RENDERING
    ========================================================================= */
@@ -4629,39 +4726,172 @@ function countOverall(data) {
 async function renderQueue() {
   const list = $('#queueList');
   const all = (await dbAll()).filter(e => e.status !== 'draft').sort((a,b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
+
+  // v3.50: banner visibility — show only if there are pending/error/syncing
+  // entries. Synced entries also count so the user can find "Clear Synced".
+  const banner = document.getElementById('localQueueBanner');
+  const activeCount = all.filter(e => e.status === 'pending' || e.status === 'error' || e.status === 'syncing').length;
+  if (banner) {
+    if (all.length === 0) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'block';
+      const countEl = document.getElementById('localQueueBannerCount');
+      const suffixEl = document.getElementById('localQueueBannerSuffix');
+      const headBtn = document.getElementById('localQueueBannerHead');
+      if (activeCount > 0) {
+        countEl.textContent = activeCount;
+        suffixEl.textContent = activeCount === 1 ? 'y' : 'ies';
+        // Active items: change banner text to be more urgent
+        headBtn.firstElementChild.innerHTML =
+          `<strong>${activeCount}</strong> entr${activeCount === 1 ? 'y' : 'ies'} waiting to sync`;
+      } else {
+        // Only synced items present
+        headBtn.firstElementChild.innerHTML =
+          `<strong>${all.length}</strong> entr${all.length === 1 ? 'y' : 'ies'} on this device (all synced)`;
+      }
+    }
+  }
+
   if (all.length === 0) {
-    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No completed entries yet.<br/><small>Mark a draft complete to send it here.</small></div>`;
+    list.innerHTML = '';
+  } else {
+    list.innerHTML = all.map(e => {
+      const d = e.data || {};
+      const proj = d['shipsData__projectNo'] || '—';
+      const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
+      const company = d['shipsData__companyName'] || '';
+      const created = new Date(e.createdAt).toLocaleString();
+      const statusLabel = { pending:'Pending', synced:'Synced', error:'Failed', syncing:'Syncing…' }[e.status] || e.status;
+      return `<div class="list-item ${e.status}" data-id="${e.id}">
+        <div class="list-head">
+          <span class="list-proj">${escapeHtml(proj)}</span>
+          <span class="list-status ${e.status}">${statusLabel}</span>
+        </div>
+        <div class="list-vessel">${escapeHtml(vessel)}</div>
+        <div class="list-meta">${escapeHtml(company)} · ${created}</div>
+        ${e.fileName ? `<div class="list-meta" style="margin-top:3px"><em>📄 ${escapeHtml(e.fileName)}</em></div>` : ''}
+        ${e.pdfFileName ? `<div class="list-meta" style="margin-top:1px"><em>📕 ${escapeHtml(e.pdfFileName)}</em></div>` : ''}
+        ${(e.perTabPdfs && e.perTabPdfs.length) ? `<div class="list-meta" style="margin-top:1px"><em>📑 ${e.perTabPdfs.length} per-tab PDFs in vessel folder</em></div>` : ''}
+        ${e.errorMsg ? `<div class="list-error-msg">${escapeHtml(e.errorMsg)}</div>` : ''}
+        <div class="list-actions">
+          ${e.status === 'pending' || e.status === 'error' ? `<button data-act="retry" data-id="${e.id}">Retry Sync</button>` : ''}
+          ${e.fileId ? `<button data-act="open" data-id="${e.id}">Open Sheet</button>` : ''}
+          ${e.pdfFileId ? `<button data-act="open-pdf" data-id="${e.id}">Open PDF</button>` : ''}
+          ${e.status !== 'syncing' ? `<button data-act="back-to-draft" data-id="${e.id}">Back to Draft</button>` : ''}
+          <button class="danger" data-act="delete" data-id="${e.id}">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', onListAction));
+  }
+  // v3.50: also refresh the Drive queue view whenever the local queue renders
+  loadDriveQueueView();
+}
+
+// v3.50: Pull the list of sheets in the shared Drive parent folder and its
+// vessel subfolders. Shows all syncs across all staff. Cached for 60s to
+// avoid hammering Drive API on rapid tab switches.
+let _driveQueueCache = { data: null, ts: 0 };
+async function loadDriveQueueView(forceRefresh) {
+  const list = $('#driveQueueList');
+  if (!list) return;
+
+  if (!config.folderId) {
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>Set a parent Drive folder ID in Setup first.</div>`;
     return;
   }
-  list.innerHTML = all.map(e => {
-    const d = e.data || {};
-    const proj = d['shipsData__projectNo'] || '—';
-    const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
-    const company = d['shipsData__companyName'] || '';
-    const created = new Date(e.createdAt).toLocaleString();
-    const statusLabel = { pending:'Pending', synced:'Synced', error:'Failed', syncing:'Syncing…' }[e.status] || e.status;
-    return `<div class="list-item ${e.status}" data-id="${e.id}">
+  if (!accessToken) {
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>Sign in to Google in Setup to see shared syncs.</div>`;
+    return;
+  }
+  if (!isOnline) {
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>Offline — shared Drive view unavailable.</div>`;
+    return;
+  }
+
+  // 60-second cache for snappier tab switching
+  const now = Date.now();
+  if (!forceRefresh && _driveQueueCache.data && (now - _driveQueueCache.ts) < 60000) {
+    renderDriveQueueList(_driveQueueCache.data);
+    return;
+  }
+
+  list.innerHTML = `<div class="list-empty"><div class="ico">⟳</div>Loading shared syncs…</div>`;
+
+  try {
+    // Query: spreadsheets anywhere whose path includes config.folderId.
+    // Drive search doesn't support recursive parent queries directly, so we
+    // do this in two steps:
+    //  1) List immediate child folders of config.folderId (the vessel folders)
+    //  2) Search for spreadsheets whose parent is ANY of those folders
+    // We also include spreadsheets directly in config.folderId as a fallback.
+    const subFoldersQ = [
+      `'${config.folderId}' in parents`,
+      `mimeType = 'application/vnd.google-apps.folder'`,
+      `trashed = false`
+    ].join(' and ');
+    const subFoldersUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(subFoldersQ)}`
+                       + `&fields=files(id,name)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+    const subRes = await gFetch(subFoldersUrl);
+    const subFolders = (subRes && subRes.files) || [];
+
+    // Build a parent-in clause: 'parent1' in parents or 'parent2' in parents ...
+    // Drive's `or` is supported in `q`. Cap at 50 folders to stay under URL limit.
+    const parents = [config.folderId, ...subFolders.slice(0, 50).map(f => f.id)];
+    const parentClause = parents.map(p => `'${p}' in parents`).join(' or ');
+    const sheetsQ = [
+      `(${parentClause})`,
+      `mimeType = 'application/vnd.google-apps.spreadsheet'`,
+      `trashed = false`
+    ].join(' and ');
+    const sheetsUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(sheetsQ)}`
+                   + `&fields=files(id,name,modifiedTime,createdTime,webViewLink,lastModifyingUser(emailAddress,displayName),parents)`
+                   + `&orderBy=modifiedTime desc&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+    const sheetsRes = await gFetch(sheetsUrl);
+    const sheets = (sheetsRes && sheetsRes.files) || [];
+
+    // Filter out the master template if it lives in this folder tree
+    const filtered = sheets.filter(s => s.id !== config.templateId);
+
+    _driveQueueCache = { data: filtered, ts: Date.now() };
+    renderDriveQueueList(filtered);
+  } catch (err) {
+    console.warn('Drive queue view failed:', err);
+    list.innerHTML = `<div class="list-empty"><div class="ico">⚠</div>Couldn't load shared syncs.<br/><small>${escapeHtml(err.message || String(err))}</small></div>`;
+  }
+}
+
+function renderDriveQueueList(sheets) {
+  const list = $('#driveQueueList');
+  if (!list) return;
+  if (!sheets || sheets.length === 0) {
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>Nothing synced yet on the shared Drive.</div>`;
+    return;
+  }
+  list.innerHTML = sheets.map(s => {
+    const who = (s.lastModifyingUser && (s.lastModifyingUser.displayName || s.lastModifyingUser.emailAddress)) || 'unknown';
+    const when = s.modifiedTime ? new Date(s.modifiedTime).toLocaleString('en-PH', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    }) : '';
+    const url = s.webViewLink || `https://docs.google.com/spreadsheets/d/${s.id}/edit`;
+    return `<div class="list-item synced">
       <div class="list-head">
-        <span class="list-proj">${escapeHtml(proj)}</span>
-        <span class="list-status ${e.status}">${statusLabel}</span>
+        <span class="list-proj">${escapeHtml(s.name)}</span>
       </div>
-      <div class="list-vessel">${escapeHtml(vessel)}</div>
-      <div class="list-meta">${escapeHtml(company)} · ${created}</div>
-      ${e.fileName ? `<div class="list-meta" style="margin-top:3px"><em>📄 ${escapeHtml(e.fileName)}</em></div>` : ''}
-      ${e.pdfFileName ? `<div class="list-meta" style="margin-top:1px"><em>📕 ${escapeHtml(e.pdfFileName)}</em></div>` : ''}
-      ${(e.perTabPdfs && e.perTabPdfs.length) ? `<div class="list-meta" style="margin-top:1px"><em>📑 ${e.perTabPdfs.length} per-tab PDFs in vessel folder</em></div>` : ''}
-      ${e.errorMsg ? `<div class="list-error-msg">${escapeHtml(e.errorMsg)}</div>` : ''}
+      <div class="list-meta">Synced by <strong>${escapeHtml(who)}</strong> · ${escapeHtml(when)}</div>
       <div class="list-actions">
-        ${e.status === 'pending' || e.status === 'error' ? `<button data-act="retry" data-id="${e.id}">Retry Sync</button>` : ''}
-        ${e.fileId ? `<button data-act="open" data-id="${e.id}">Open Sheet</button>` : ''}
-        ${e.pdfFileId ? `<button data-act="open-pdf" data-id="${e.id}">Open PDF</button>` : ''}
-        ${e.status !== 'syncing' ? `<button data-act="back-to-draft" data-id="${e.id}">Back to Draft</button>` : ''}
-        <button class="danger" data-act="delete" data-id="${e.id}">Delete</button>
+        <button data-drive-open="${escapeHtml(url)}">Open Sheet</button>
       </div>
     </div>`;
   }).join('');
-  list.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', onListAction));
+  list.querySelectorAll('button[data-drive-open]').forEach(b => {
+    b.addEventListener('click', () => window.open(b.dataset.driveOpen, '_blank'));
+  });
 }
+
+
 
 async function onListAction(e) {
   const id = e.currentTarget.dataset.id;
