@@ -3318,7 +3318,14 @@ async function saveEntry(asComplete) {
           vesselName: vesselName,
           jsonBlob: JSON.stringify(data),
           userEmail: userEmail,
-          releaseLock: inCloudLockMode  // only release when we actually hold the lock
+          // v3.50 FIX: always release lock after Save Draft. Previously this
+          // was `inCloudLockMode` (only release when we held the lock), which
+          // had the side-effect of WRITING a lock on every fresh-form save
+          // (because the server wrote a lock whenever releaseLock=false).
+          // That made all saved drafts appear locked to other devices.
+          // Locks should only exist during active Pull & Edit sessions, NOT
+          // during regular form-saves.
+          releaseLock: true
         });
       } catch (cloudErr) {
         console.warn('Cloud draft push failed (will retry later):', cloudErr);
@@ -3386,7 +3393,7 @@ async function retryPendingCloudPushes() {
         vesselName: vesselName,
         jsonBlob: JSON.stringify(entry.data),
         userEmail: userEmail,
-        releaseLock: false
+        releaseLock: true  // v3.50 FIX: same fix as primary save path
       });
       if (res && res.ok) {
         entry.cloudSynced = true;
