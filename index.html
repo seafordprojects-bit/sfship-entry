@@ -1218,7 +1218,7 @@
          user actually wants to see it. -->
     <details id="cloudDraftsSection" style="margin-top:18px">
       <summary style="cursor:pointer; padding:11px 14px; background:var(--bone); border:1px solid var(--line); border-radius:4px; display:flex; align-items:center; justify-content:space-between; font-family:Calibri,sans-serif; font-size:14px; color:var(--ink); list-style:none">
-        <span>☁️ Cloud Drafts <span id="cloudDraftsCount" style="color:var(--ink-soft); font-size:12px"></span></span>
+        <span>✓ Completed (last 30 days) <span id="cloudDraftsCount" style="color:var(--ink-soft); font-size:12px"></span></span>
         <span style="display:flex; align-items:center; gap:8px">
           <button type="button" class="small-btn" id="cloudRefreshBtn" onclick="event.stopPropagation(); event.preventDefault();">↻ Refresh</button>
           <span id="cloudDraftsCaret" style="font-size:12px; color:var(--ink-soft)">▾</span>
@@ -4924,19 +4924,45 @@ if (localQueueHead) {
    ========================================================================= */
 async function renderDrafts() {
   const list = $('#draftsList');
-  const all = (await dbAll()).filter(e => e.status === 'draft').sort((a,b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
-  if (all.length === 0) {
-    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No local drafts.<br/><small>Saved drafts appear here. Use ☁️ Pull from Cloud to fetch cloud drafts.</small></div>`;
+  const localDrafts = (await dbAll())
+    .filter(e => e.status === 'draft')
+    .sort((a,b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
+
+  // v3.50: also fetch ACTIVE cloud drafts (non-archived). Anything that
+  // doesn't match a local draft by project number gets shown as a "remote"
+  // card so the user can see what their assistant is working on right now.
+  let remoteActiveDrafts = [];
+  if (isOnline && accessToken) {
+    try {
+      const result = await cloudCall('listDrafts', {});
+      if (result.ok) {
+        const localProjects = new Set(localDrafts.map(e =>
+          ((e.data || {})['shipsData__projectNo'] || '').trim()
+        ).filter(Boolean));
+        remoteActiveDrafts = (result.drafts || [])
+          .filter(d => !d.archivedAt)                       // active only
+          .filter(d => !localProjects.has(d.projectNo));    // not already local
+      }
+    } catch (e) {
+      console.warn('renderDrafts: cloud list failed (continuing with local only):', e);
+    }
+  }
+
+  const totalCount = localDrafts.length + remoteActiveDrafts.length;
+  if (totalCount === 0) {
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No active drafts.<br/><small>Saved drafts appear here. Completed (synced) projects go to the Cloud Drafts dropdown below.</small></div>`;
     return;
   }
-  list.innerHTML = all.map(e => {
+
+  // Local drafts first (you can directly edit), then remote-only drafts
+  // (you need to Pull & Edit to take them over).
+  const localHtml = localDrafts.map(e => {
     const d = e.data || {};
     const proj = d['shipsData__projectNo'] || '—';
     const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
     const company = d['shipsData__companyName'] || '';
     const updated = new Date(e.updatedAt || e.createdAt).toLocaleString();
     const fillCount = countOverall(d);
-    // v3.50: cloud sync state badge for drafts
     let cloudBadge = '';
     if (e.cloudSynced) {
       cloudBadge = `<span style="font-size:11px; color:var(--green); margin-left:6px" title="Pushed to cloud">☁ Cloud ✓</span>`;
@@ -4959,7 +4985,56 @@ async function renderDrafts() {
       </div>
     </div>`;
   }).join('');
+
+  // v3.50: remote-active cloud drafts (assistant's in-progress work). These
+  // aren't in the local IndexedDB on this device — to edit, the user does
+  // Pull & Edit which loads the form and acquires the cloud edit lock.
+  const remoteHtml = remoteActiveDrafts.map(d => {
+    const lockedByOther = d.locked;
+    const lastMod = d.lastModified ? new Date(d.lastModified).toLocaleString() : '—';
+    const editor = d.lastEditor || 'unknown';
+    let badgeHtml, actionBtns, lockMeta = '';
+    if (lockedByOther) {
+      badgeHtml = '<span class="list-status error">🔒 Locked</span>';
+      actionBtns = `<button class="cloud-pull-readonly-inline" data-proj="${escapeHtml(d.projectNo)}">View Read-Only</button>`;
+      lockMeta = `<div style="font-size:13px; color: var(--red); margin-top:3px;">🔒 Being edited by ${escapeHtml(d.lockedBy)}</div>`;
+    } else {
+      badgeHtml = '<span class="list-status pending">☁️ Remote</span>';
+      actionBtns = `<button class="primary cloud-pull-inline" data-proj="${escapeHtml(d.projectNo)}">Pull & Edit</button>`;
+    }
+    return `<div class="list-item cloud${lockedByOther ? ' locked' : ''}">
+      <div class="list-head">
+        <span class="list-proj">${escapeHtml(d.projectNo)}</span>
+        ${badgeHtml}
+      </div>
+      <div class="list-vessel">${escapeHtml(d.vesselName || 'Untitled')}</div>
+      <div class="list-meta">Last edit: ${escapeHtml(editor)} · ${lastMod}</div>
+      ${lockMeta}
+      <div style="font-size:12px; color: var(--ink-soft); margin-top:3px; font-style:italic;">Not on this device — Pull & Edit to take over</div>
+      <div class="list-actions">
+        ${actionBtns}
+        <button class="danger cloud-delete-inline" data-proj="${escapeHtml(d.projectNo)}" data-vessel="${escapeHtml(d.vesselName || '')}">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.innerHTML = localHtml + remoteHtml;
   list.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', onListAction));
+  // v3.50: inline cloud-action buttons (different class names so they don't
+  // collide with the dropdown's pull/delete buttons)
+  list.querySelectorAll('.cloud-pull-inline').forEach(b => {
+    b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'edit'));
+  });
+  list.querySelectorAll('.cloud-pull-readonly-inline').forEach(b => {
+    b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'readonly'));
+  });
+  list.querySelectorAll('.cloud-delete-inline').forEach(b => {
+    b.addEventListener('click', async () => {
+      await doDeleteCloudDraft(b.dataset.proj, b.dataset.vessel);
+      renderDrafts();
+      renderCloudDraftsList();
+    });
+  });
 }
 
 function countOverall(data) {
@@ -5991,12 +6066,14 @@ async function renderCloudDraftsList() {
   try {
     const result = await cloudCall('listDrafts', {});
     if (!result.ok) throw new Error(result.error || 'Failed to list drafts');
-    const drafts = result.drafts || [];
+    // v3.50: dropdown shows ONLY archived (synced) entries as history.
+    // Active drafts now appear in the Local Drafts area above.
+    const drafts = (result.drafts || []).filter(d => !!d.archivedAt);
     // v3.50: update count badge in the section summary
     const countEl = document.getElementById('cloudDraftsCount');
     if (countEl) countEl.textContent = drafts.length ? `(${drafts.length})` : '';
     if (drafts.length === 0) {
-      wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">No cloud drafts yet.<br/><small>Fill in a form on Entry tab and tap Save Draft.</small></div>';
+      wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">No completed projects yet.<br/><small>Marked Complete projects appear here for 30 days, with option to revert if you find a mistake.</small></div>';
       return;
     }
     const myEmail = await getUserEmail();
