@@ -1232,6 +1232,26 @@
       <button class="btn btn-primary" id="syncNowBtn">Sync Now</button>
       <button class="btn btn-secondary" id="refreshDriveQueueBtn">↻ Refresh</button>
     </div>
+
+    <!-- v3.50: Sort controls for the shared Drive list. Persisted via the
+         _driveQueueSort module-level variable; renderDriveQueueList re-uses
+         them on every render including cached refreshes. -->
+    <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap; font-size:13px">
+      <span style="color:var(--ink-soft)">Sort by:</span>
+      <select id="driveQueueSortKey" style="
+        padding:5px 8px; border:1px solid var(--line); background:var(--paper);
+        font-size:13px; border-radius:2px; font-family:Calibri,sans-serif">
+        <option value="modifiedTime">Date / Time</option>
+        <option value="name">Name</option>
+      </select>
+      <button type="button" id="driveQueueSortDir" style="
+        padding:5px 10px; border:1px solid var(--line); background:var(--paper);
+        font-size:13px; border-radius:2px; cursor:pointer;
+        font-family:Calibri,sans-serif" title="Toggle sort direction">
+        ↓ Newest first
+      </button>
+    </div>
+
     <div id="driveQueueList"></div>
 
     <!-- v3.50: local queue banner. Hidden unless there are pending/error/
@@ -1443,7 +1463,6 @@
 
 <div class="actions" id="actionsBar">
   <button type="button" class="btn btn-secondary" id="saveDraftBtn">Save Draft</button>
-  <button type="button" class="btn btn-secondary" id="pushCloudBtn" title="Push to Cloud">☁️ Push</button>
   <button type="button" class="btn btn-success" id="completeBtn">Mark Complete</button>
 </div>
 
@@ -1996,9 +2015,23 @@ function updateNetStatus() {
   pill.classList.toggle('offline', !isOnline);
   $('#netLabel').textContent = isOnline ? 'ONLINE' : 'OFFLINE';
   if (isOnline && accessToken) trySync();
+  // v3.50: also retry any cloud-draft pushes that failed while offline.
+  // Runs without needing the Drive accessToken — it uses the Apps Script
+  // saveDraft endpoint which authenticates via the script's own credentials.
+  if (isOnline) {
+    setTimeout(() => { retryPendingCloudPushes().catch(e => console.warn('retryPendingCloudPushes:', e)); }, 1500);
+  }
 }
 window.addEventListener('online', () => { updateNetStatus(); toast('Back online — syncing…', 'success'); });
 window.addEventListener('offline', () => { updateNetStatus(); toast('Offline — entries will queue', 'info'); });
+
+// v3.50: periodic cloud-draft push retry. Every 60s while online, walks the
+// local drafts marked needsCloudPush=true and re-tries. Catches transient
+// failures (network blips, Apps Script timeouts) without needing the user to
+// trigger anything.
+setInterval(() => {
+  if (isOnline) retryPendingCloudPushes().catch(e => console.warn('periodic retryPendingCloudPushes:', e));
+}, 60 * 1000);
 
 /* =========================================================================
    GOOGLE SIGN-IN
@@ -3211,13 +3244,111 @@ async function saveEntry(asComplete) {
     clearForm(); editingId = null; updateDraftBar();
     if (isOnline && accessToken) trySync();
   } else {
-    toast(editingId ? 'Draft updated' : 'Draft saved', 'success');
+    // v3.50: Save Draft is cloud-first. After local save, try to push to
+    // cloud. Local copy is kept regardless of cloud result; needsCloudPush
+    // flag drives the background retry when internet returns.
+    //
+    // When in cloud-lock editing mode (user pulled this draft from cloud and
+    // holds the edit lock), pass releaseLock:true so a successful push frees
+    // the lock for other devices to edit. In normal mode, lock stays as-is.
+    const inCloudLockMode = !!cloudLockedProjectNo && !cloudReadOnly;
+    let cloudResult = null;
+    if (isOnline) {
+      try {
+        const userEmail = await getUserEmail();
+        cloudResult = await cloudCall('saveDraft', {
+          projectNo: projectNo,
+          vesselName: vesselName,
+          jsonBlob: JSON.stringify(data),
+          userEmail: userEmail,
+          releaseLock: inCloudLockMode  // only release when we actually hold the lock
+        });
+      } catch (cloudErr) {
+        console.warn('Cloud draft push failed (will retry later):', cloudErr);
+        cloudResult = null;
+      }
+    }
+
+    const cloudOk = cloudResult && cloudResult.ok;
+    entry.cloudSynced = !!cloudOk;
+    entry.needsCloudPush = !cloudOk;
+    entry.lastCloudPushAt = cloudOk ? new Date().toISOString() : (entry.lastCloudPushAt || null);
+    if (cloudOk) delete entry.cloudPushError;
+    else if (cloudResult && cloudResult.error) entry.cloudPushError = cloudResult.error;
+    else if (!isOnline) entry.cloudPushError = 'offline';
+    await dbPut(entry);
+
+    if (cloudOk) {
+      if (inCloudLockMode) {
+        // Lock released — clear cloud-lock state and refresh UI back to normal
+        cloudLockedProjectNo = null;
+        cloudReadOnly = false;
+        applyCloudLockUI();
+        toast('Saved & released cloud lock ✓', 'success');
+      } else {
+        toast(editingId ? 'Draft updated · cloud ✓' : 'Draft saved · cloud ✓', 'success');
+      }
+    } else if (!isOnline) {
+      toast(editingId ? 'Draft updated locally — cloud will sync when online' : 'Draft saved locally — cloud will sync when online', 'info');
+    } else if (cloudResult && cloudResult.lockedBy && inCloudLockMode === false) {
+      // Edge case: tried to save a project number that's locked by someone else
+      toast(`Cloud locked by ${cloudResult.lockedBy} — saved locally only`, 'info');
+    } else {
+      const reason = (cloudResult && cloudResult.error) ? ` (${cloudResult.error})` : '';
+      toast(`Draft saved locally — cloud push failed${reason}, will retry`, 'info');
+    }
+
     if (!editingId) {
       editingId = entry.id;
       updateDraftBar();
     }
   }
   await refreshBadges();
+}
+
+// v3.50: Background cloud retry. Walks local drafts with needsCloudPush=true
+// and re-attempts the cloud save. Triggered on network-online events and on
+// the periodic 30s tick. Silent — no toasts; only logs to console.
+async function retryPendingCloudPushes() {
+  if (!isOnline) return;
+  if (!APPS_SCRIPT_PER_TAB_PDF_URL || APPS_SCRIPT_PER_TAB_PDF_URL.includes('PASTE_URL_HERE')) return;
+  const all = await dbAll();
+  const pending = all.filter(e =>
+    e.status === 'draft' &&
+    e.needsCloudPush === true
+  );
+  if (pending.length === 0) return;
+  let pushed = 0;
+  for (const entry of pending) {
+    const { projectNo, vesselName } = getProjectAndVessel(entry.data || {});
+    if (!projectNo || !vesselName) continue;
+    try {
+      const userEmail = await getUserEmail();
+      const res = await cloudCall('saveDraft', {
+        projectNo: projectNo,
+        vesselName: vesselName,
+        jsonBlob: JSON.stringify(entry.data),
+        userEmail: userEmail,
+        releaseLock: false
+      });
+      if (res && res.ok) {
+        entry.cloudSynced = true;
+        entry.needsCloudPush = false;
+        entry.lastCloudPushAt = new Date().toISOString();
+        delete entry.cloudPushError;
+        await dbPut(entry);
+        pushed++;
+      }
+    } catch (err) {
+      console.warn('Cloud push retry failed for', projectNo, err);
+      // Leave needsCloudPush=true so next tick tries again
+    }
+  }
+  if (pushed > 0) {
+    toast(`Pushed ${pushed} draft${pushed === 1 ? '' : 's'} to cloud`, 'success');
+    renderDrafts();
+    refreshBadges();
+  }
 }
 
 async function loadEntryForEdit(id) {
@@ -4595,6 +4726,39 @@ $('#clearSyncedBtn').addEventListener('click', async () => {
 const refreshDriveBtn = document.getElementById('refreshDriveQueueBtn');
 if (refreshDriveBtn) refreshDriveBtn.addEventListener('click', () => loadDriveQueueView(true));
 
+// v3.50: sort controls for shared Drive list. Re-render from cache (no network
+// re-fetch) so changing sort feels instant.
+const sortKeyEl = document.getElementById('driveQueueSortKey');
+const sortDirEl = document.getElementById('driveQueueSortDir');
+function updateSortDirLabel() {
+  if (!sortDirEl) return;
+  const { key, dir } = _driveQueueSort;
+  if (key === 'name') {
+    sortDirEl.textContent = dir === 'asc' ? '↓ A → Z' : '↑ Z → A';
+  } else {
+    sortDirEl.textContent = dir === 'desc' ? '↓ Newest first' : '↑ Oldest first';
+  }
+}
+function reRenderDriveQueueFromCache() {
+  if (_driveQueueCache.data) renderDriveQueueList(_driveQueueCache.data);
+}
+if (sortKeyEl) {
+  sortKeyEl.addEventListener('change', () => {
+    _driveQueueSort.key = sortKeyEl.value;
+    // Reset direction to a sensible default when changing key type
+    _driveQueueSort.dir = (sortKeyEl.value === 'name') ? 'asc' : 'desc';
+    updateSortDirLabel();
+    reRenderDriveQueueFromCache();
+  });
+}
+if (sortDirEl) {
+  sortDirEl.addEventListener('click', () => {
+    _driveQueueSort.dir = _driveQueueSort.dir === 'asc' ? 'desc' : 'asc';
+    updateSortDirLabel();
+    reRenderDriveQueueFromCache();
+  });
+}
+
 // v3.50: local queue banner expand/collapse
 const localQueueHead = document.getElementById('localQueueBannerHead');
 if (localQueueHead) {
@@ -4624,10 +4788,18 @@ async function renderDrafts() {
     const company = d['shipsData__companyName'] || '';
     const updated = new Date(e.updatedAt || e.createdAt).toLocaleString();
     const fillCount = countOverall(d);
+    // v3.50: cloud sync state badge for drafts
+    let cloudBadge = '';
+    if (e.cloudSynced) {
+      cloudBadge = `<span style="font-size:11px; color:var(--green); margin-left:6px" title="Pushed to cloud">☁ Cloud ✓</span>`;
+    } else if (e.needsCloudPush) {
+      const reason = e.cloudPushError === 'offline' ? 'offline' : 'will retry';
+      cloudBadge = `<span style="font-size:11px; color:var(--ink-soft); margin-left:6px" title="Local only — ${escapeHtml(reason)}">☁ Local only</span>`;
+    }
     return `<div class="list-item draft" data-id="${e.id}">
       <div class="list-head">
         <span class="list-proj">${escapeHtml(proj)}</span>
-        <span class="list-status draft">Draft</span>
+        <span class="list-status draft">Draft${cloudBadge}</span>
       </div>
       <div class="list-vessel">${escapeHtml(vessel)}</div>
       <div class="list-meta">${escapeHtml(company)} · ${updated}</div>
@@ -4862,6 +5034,10 @@ async function loadDriveQueueView(forceRefresh) {
   }
 }
 
+// v3.50: sort state for the shared Drive list. Default: most recently
+// modified first (which is what people usually want — "what just got done").
+let _driveQueueSort = { key: 'modifiedTime', dir: 'desc' };
+
 function renderDriveQueueList(sheets) {
   const list = $('#driveQueueList');
   if (!list) return;
@@ -4869,7 +5045,26 @@ function renderDriveQueueList(sheets) {
     list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>Nothing synced yet on the shared Drive.</div>`;
     return;
   }
-  list.innerHTML = sheets.map(s => {
+
+  // v3.50: apply sort. Copy first so we don't mutate the cache.
+  const sorted = sheets.slice();
+  const { key, dir } = _driveQueueSort;
+  sorted.sort((a, b) => {
+    let av, bv;
+    if (key === 'name') {
+      av = (a.name || '').toLowerCase();
+      bv = (b.name || '').toLowerCase();
+    } else {
+      // Date keys (modifiedTime, createdTime) — ISO strings sort lexicographically
+      av = a[key] || '';
+      bv = b[key] || '';
+    }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  list.innerHTML = sorted.map(s => {
     const who = (s.lastModifyingUser && (s.lastModifyingUser.displayName || s.lastModifyingUser.emailAddress)) || 'unknown';
     const when = s.modifiedTime ? new Date(s.modifiedTime).toLocaleString('en-PH', {
       year: 'numeric', month: 'short', day: 'numeric',
@@ -5255,49 +5450,9 @@ async function doPullDraft(projectNo, mode) {
   }
 }
 
-async function doPushDraft() {
-  if (!isOnline) { toast('Offline — can\'t push', 'error'); return; }
-  if (!accessToken) { toast('Sign in to Google first', 'error'); return; }
-
-  const data = collectFormData();
-  const projectNo = (data['shipsData__projectNo'] || '').trim();
-  const vesselName = (data['shipsData__vesselName'] || '').trim();
-  if (!projectNo) { toast('Project No. required to push', 'error'); return; }
-  if (!vesselName) { toast('Vessel Name required to push', 'error'); return; }
-
-  if (cloudReadOnly) {
-    toast('Read-only mode — can\'t push', 'error');
-    return;
-  }
-
-  if (!confirm(`Push ${projectNo} to cloud? Other device will be able to pull it.`)) return;
-
-  toast('Pushing to cloud...', 'info');
-  try {
-    const userEmail = await getUserEmail();
-    const result = await cloudCall('saveDraft', {
-      projectNo: projectNo,
-      vesselName: vesselName,
-      jsonBlob: JSON.stringify(data),
-      userEmail: userEmail,
-      releaseLock: true
-    });
-    if (!result.ok) {
-      if (result.lockedBy) {
-        toast(`Locked by ${result.lockedBy} — can't push`, 'error');
-      } else {
-        toast('Push failed: ' + (result.error || 'unknown'), 'error');
-      }
-      return;
-    }
-    cloudLockedProjectNo = null;
-    cloudReadOnly = false;
-    applyCloudLockUI();
-    toast('Pushed to cloud ✓', 'success');
-  } catch (err) {
-    toast('Push error: ' + (err.message || String(err)), 'error');
-  }
-}
+// v3.50: doPushDraft removed. Save Draft now handles all cloud push scenarios
+// including releasing the cloud edit lock when in cloud-lock mode. See
+// saveEntry for the consolidated logic.
 
 async function doDeleteCloudDraft(projectNo, vesselName) {
   if (!confirm(`Delete cloud draft ${projectNo} (${vesselName})?\n\nThis cannot be undone.`)) return;
@@ -5318,7 +5473,9 @@ function applyCloudLockUI() {
   const form = document.getElementById('entryForm');
   const saveBtn = document.getElementById('saveDraftBtn');
   const completeBtn = document.getElementById('completeBtn');
-  const pushBtn = document.getElementById('pushCloudBtn');
+  // v3.50: pushCloudBtn removed. Save Draft now handles both local + cloud
+  // in all modes (normal editing and cloud-lock editing). saveEntry
+  // detects cloudLockedProjectNo and releases the lock on success.
 
   if (cloudLockedProjectNo) {
     bar.style.display = 'flex';
@@ -5329,9 +5486,9 @@ function applyCloudLockUI() {
       label.textContent = '🔒 READ-ONLY (LOCKED BY ANOTHER USER)';
       cancelBtn.textContent = 'Close';
       form.style.pointerEvents = 'none';
-      form.style.opacity = '0.7';      saveBtn.style.display = 'none';
+      form.style.opacity = '0.7';
+      saveBtn.style.display = 'none';
       completeBtn.style.display = 'none';
-      pushBtn.style.display = 'none';
     } else {
       bar.classList.remove('cloud-readonly');
       bar.classList.add('cloud-edit');
@@ -5339,9 +5496,8 @@ function applyCloudLockUI() {
       cancelBtn.textContent = 'Release & discard';
       form.style.pointerEvents = '';
       form.style.opacity = '';
-      saveBtn.style.display = 'none';   // hide local Save Draft in cloud mode
-      completeBtn.style.display = 'none'; // hide Mark Complete in cloud mode
-      pushBtn.style.display = '';
+      saveBtn.style.display = '';   // v3.50: Save Draft now visible in cloud-edit mode
+      completeBtn.style.display = '';
     }
     document.getElementById('draftBarName').textContent = cloudLockedProjectNo;
   } else {
@@ -5349,7 +5505,6 @@ function applyCloudLockUI() {
     form.style.opacity = '';
     saveBtn.style.display = '';
     completeBtn.style.display = '';
-    pushBtn.style.display = '';
     bar.classList.remove('cloud-edit', 'cloud-readonly');
     if (!editingId) {
       bar.style.display = 'none';
@@ -5361,7 +5516,6 @@ function applyCloudLockUI() {
   }
 }
 
-document.getElementById('pushCloudBtn').addEventListener('click', doPushDraft);
 document.getElementById('cloudModalClose').addEventListener('click', closeCloudModal);
 document.getElementById('cloudModal').addEventListener('click', (e) => {
   if (e.target.id === 'cloudModal') closeCloudModal();
