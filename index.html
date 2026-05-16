@@ -1212,10 +1212,17 @@
       <span>Local Drafts</span>
     </div>
     <div id="draftsList"></div>
-    <!-- v3.50: Cloud Drafts hidden by default behind a dropdown. Click the
-         header to expand/collapse. Heavier to load than local drafts (network
-         call), so collapsed-by-default also delays the cloudCall until the
-         user actually wants to see it. -->
+    <!-- v3.50: active cloud drafts not on this device (assistant's
+         in-progress work). Hidden when empty. -->
+    <div id="remoteActiveDraftsSection" style="display:none">
+      <div class="section-heading" style="margin-top:18px">
+        <span>☁️ Currently being edited (other devices)</span>
+      </div>
+      <div id="remoteActiveDraftsList"></div>
+    </div>
+    <!-- v3.50: Completed (synced) projects, archived for 30 days. Collapsed
+         by default. Click the header to expand/collapse. Lazy-loaded when
+         the user opens it. -->
     <details id="cloudDraftsSection" style="margin-top:18px">
       <summary style="cursor:pointer; padding:11px 14px; background:var(--bone); border:1px solid var(--line); border-radius:4px; display:flex; align-items:center; justify-content:space-between; font-family:Calibri,sans-serif; font-size:14px; color:var(--ink); list-style:none">
         <span>✓ Completed (last 30 days) <span id="cloudDraftsCount" style="color:var(--ink-soft); font-size:12px"></span></span>
@@ -1226,7 +1233,7 @@
       </summary>
       <div id="cloudDraftsList" style="margin-top:8px">
         <div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">
-          Sign in to Google (Setup tab) to see cloud drafts.
+          Sign in to Google (Setup tab) to see completed projects.
         </div>
       </div>
     </details>
@@ -4928,9 +4935,9 @@ async function renderDrafts() {
     .filter(e => e.status === 'draft')
     .sort((a,b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
 
-  // v3.50: also fetch ACTIVE cloud drafts (non-archived). Anything that
-  // doesn't match a local draft by project number gets shown as a "remote"
-  // card so the user can see what their assistant is working on right now.
+  // v3.50: also fetch ACTIVE cloud drafts (non-archived) and split into a
+  // separate section below Local Drafts. Anything that matches a local draft
+  // by project number is hidden from the remote section (already shown above).
   let remoteActiveDrafts = [];
   if (isOnline && accessToken) {
     try {
@@ -4948,93 +4955,91 @@ async function renderDrafts() {
     }
   }
 
-  const totalCount = localDrafts.length + remoteActiveDrafts.length;
-  if (totalCount === 0) {
-    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No active drafts.<br/><small>Saved drafts appear here. Completed (synced) projects go to the Cloud Drafts dropdown below.</small></div>`;
-    return;
+  // --- LOCAL DRAFTS section ---
+  if (localDrafts.length === 0) {
+    list.innerHTML = `<div class="list-empty"><div class="ico">∅</div>No local drafts on this device.<br/><small>Saved drafts appear here.</small></div>`;
+  } else {
+    list.innerHTML = localDrafts.map(e => {
+      const d = e.data || {};
+      const proj = d['shipsData__projectNo'] || '—';
+      const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
+      const company = d['shipsData__companyName'] || '';
+      const updated = new Date(e.updatedAt || e.createdAt).toLocaleString();
+      const fillCount = countOverall(d);
+      let cloudBadge = '';
+      if (e.cloudSynced) {
+        cloudBadge = `<span style="font-size:11px; color:var(--green); margin-left:6px" title="Pushed to cloud">☁ Cloud ✓</span>`;
+      } else if (e.needsCloudPush) {
+        const reason = e.cloudPushError === 'offline' ? 'offline' : 'will retry';
+        cloudBadge = `<span style="font-size:11px; color:var(--ink-soft); margin-left:6px" title="Local only — ${escapeHtml(reason)}">☁ Local only</span>`;
+      }
+      return `<div class="list-item draft" data-id="${e.id}">
+        <div class="list-head">
+          <span class="list-proj">${escapeHtml(proj)}</span>
+          <span class="list-status draft">Draft${cloudBadge}</span>
+        </div>
+        <div class="list-vessel">${escapeHtml(vessel)}</div>
+        <div class="list-meta">${escapeHtml(company)} · ${updated}</div>
+        <div class="list-fill">${fillCount.filled}/${fillCount.total} fields</div>
+        <div class="list-actions">
+          <button class="primary" data-act="edit" data-id="${e.id}">Continue Editing</button>
+          <button data-act="complete" data-id="${e.id}">Mark Complete</button>
+          <button class="danger" data-act="delete" data-id="${e.id}">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', onListAction));
   }
 
-  // Local drafts first (you can directly edit), then remote-only drafts
-  // (you need to Pull & Edit to take them over).
-  const localHtml = localDrafts.map(e => {
-    const d = e.data || {};
-    const proj = d['shipsData__projectNo'] || '—';
-    const vessel = d['shipsData__vesselName'] || 'Untitled vessel';
-    const company = d['shipsData__companyName'] || '';
-    const updated = new Date(e.updatedAt || e.createdAt).toLocaleString();
-    const fillCount = countOverall(d);
-    let cloudBadge = '';
-    if (e.cloudSynced) {
-      cloudBadge = `<span style="font-size:11px; color:var(--green); margin-left:6px" title="Pushed to cloud">☁ Cloud ✓</span>`;
-    } else if (e.needsCloudPush) {
-      const reason = e.cloudPushError === 'offline' ? 'offline' : 'will retry';
-      cloudBadge = `<span style="font-size:11px; color:var(--ink-soft); margin-left:6px" title="Local only — ${escapeHtml(reason)}">☁ Local only</span>`;
-    }
-    return `<div class="list-item draft" data-id="${e.id}">
-      <div class="list-head">
-        <span class="list-proj">${escapeHtml(proj)}</span>
-        <span class="list-status draft">Draft${cloudBadge}</span>
-      </div>
-      <div class="list-vessel">${escapeHtml(vessel)}</div>
-      <div class="list-meta">${escapeHtml(company)} · ${updated}</div>
-      <div class="list-fill">${fillCount.filled}/${fillCount.total} fields</div>
-      <div class="list-actions">
-        <button class="primary" data-act="edit" data-id="${e.id}">Continue Editing</button>
-        <button data-act="complete" data-id="${e.id}">Mark Complete</button>
-        <button class="danger" data-act="delete" data-id="${e.id}">Delete</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  // v3.50: remote-active cloud drafts (assistant's in-progress work). These
-  // aren't in the local IndexedDB on this device — to edit, the user does
-  // Pull & Edit which loads the form and acquires the cloud edit lock.
-  const remoteHtml = remoteActiveDrafts.map(d => {
-    const lockedByOther = d.locked;
-    const lastMod = d.lastModified ? new Date(d.lastModified).toLocaleString() : '—';
-    const editor = d.lastEditor || 'unknown';
-    let badgeHtml, actionBtns, lockMeta = '';
-    if (lockedByOther) {
-      badgeHtml = '<span class="list-status error">🔒 Locked</span>';
-      actionBtns = `<button class="cloud-pull-readonly-inline" data-proj="${escapeHtml(d.projectNo)}">View Read-Only</button>`;
-      lockMeta = `<div style="font-size:13px; color: var(--red); margin-top:3px;">🔒 Being edited by ${escapeHtml(d.lockedBy)}</div>`;
-    } else {
-      badgeHtml = '<span class="list-status pending">☁️ Remote</span>';
-      actionBtns = `<button class="primary cloud-pull-inline" data-proj="${escapeHtml(d.projectNo)}">Pull & Edit</button>`;
-    }
-    return `<div class="list-item cloud${lockedByOther ? ' locked' : ''}">
-      <div class="list-head">
-        <span class="list-proj">${escapeHtml(d.projectNo)}</span>
-        ${badgeHtml}
-      </div>
-      <div class="list-vessel">${escapeHtml(d.vesselName || 'Untitled')}</div>
-      <div class="list-meta">Last edit: ${escapeHtml(editor)} · ${lastMod}</div>
-      ${lockMeta}
-      <div style="font-size:12px; color: var(--ink-soft); margin-top:3px; font-style:italic;">Not on this device — Pull & Edit to take over</div>
-      <div class="list-actions">
-        ${actionBtns}
-        <button class="danger cloud-delete-inline" data-proj="${escapeHtml(d.projectNo)}" data-vessel="${escapeHtml(d.vesselName || '')}">Delete</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  list.innerHTML = localHtml + remoteHtml;
-  list.querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', onListAction));
-  // v3.50: inline cloud-action buttons (different class names so they don't
-  // collide with the dropdown's pull/delete buttons)
-  list.querySelectorAll('.cloud-pull-inline').forEach(b => {
-    b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'edit'));
-  });
-  list.querySelectorAll('.cloud-pull-readonly-inline').forEach(b => {
-    b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'readonly'));
-  });
-  list.querySelectorAll('.cloud-delete-inline').forEach(b => {
-    b.addEventListener('click', async () => {
-      await doDeleteCloudDraft(b.dataset.proj, b.dataset.vessel);
-      renderDrafts();
-      renderCloudDraftsList();
+  // --- REMOTE ACTIVE DRAFTS section (assistant's in-progress work) ---
+  const remoteSection = document.getElementById('remoteActiveDraftsSection');
+  const remoteList = document.getElementById('remoteActiveDraftsList');
+  if (remoteActiveDrafts.length === 0) {
+    if (remoteSection) remoteSection.style.display = 'none';
+  } else {
+    if (remoteSection) remoteSection.style.display = '';
+    remoteList.innerHTML = remoteActiveDrafts.map(d => {
+      const lockedByOther = d.locked;
+      const lastMod = d.lastModified ? new Date(d.lastModified).toLocaleString() : '—';
+      const editor = d.lastEditor || 'unknown';
+      let badgeHtml, actionBtns, lockMeta = '';
+      if (lockedByOther) {
+        badgeHtml = '<span class="list-status error">🔒 Locked</span>';
+        actionBtns = `<button class="cloud-pull-readonly-inline" data-proj="${escapeHtml(d.projectNo)}">View Read-Only</button>`;
+        lockMeta = `<div style="font-size:13px; color: var(--red); margin-top:3px;">🔒 Being edited by ${escapeHtml(d.lockedBy)}</div>`;
+      } else {
+        badgeHtml = '<span class="list-status pending">☁️ Remote</span>';
+        actionBtns = `<button class="primary cloud-pull-inline" data-proj="${escapeHtml(d.projectNo)}">Pull & Edit</button>`;
+      }
+      return `<div class="list-item cloud${lockedByOther ? ' locked' : ''}">
+        <div class="list-head">
+          <span class="list-proj">${escapeHtml(d.projectNo)}</span>
+          ${badgeHtml}
+        </div>
+        <div class="list-vessel">${escapeHtml(d.vesselName || 'Untitled')}</div>
+        <div class="list-meta">Last edit: ${escapeHtml(editor)} · ${lastMod}</div>
+        ${lockMeta}
+        <div style="font-size:12px; color: var(--ink-soft); margin-top:3px; font-style:italic;">Not on this device — Pull & Edit to take over</div>
+        <div class="list-actions">
+          ${actionBtns}
+          <button class="danger cloud-delete-inline" data-proj="${escapeHtml(d.projectNo)}" data-vessel="${escapeHtml(d.vesselName || '')}">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+    remoteList.querySelectorAll('.cloud-pull-inline').forEach(b => {
+      b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'edit'));
     });
-  });
+    remoteList.querySelectorAll('.cloud-pull-readonly-inline').forEach(b => {
+      b.addEventListener('click', () => doPullDraft(b.dataset.proj, 'readonly'));
+    });
+    remoteList.querySelectorAll('.cloud-delete-inline').forEach(b => {
+      b.addEventListener('click', async () => {
+        await doDeleteCloudDraft(b.dataset.proj, b.dataset.vessel);
+        renderDrafts();
+        renderCloudDraftsList();
+      });
+    });
+  }
 }
 
 function countOverall(data) {
