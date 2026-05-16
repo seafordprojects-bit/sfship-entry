@@ -1212,15 +1212,24 @@
       <span>Local Drafts</span>
     </div>
     <div id="draftsList"></div>
-    <div class="section-heading">
-      <span>☁️ Cloud Drafts</span>
-      <button class="small-btn" id="cloudRefreshBtn">↻ Refresh</button>
-    </div>
-    <div id="cloudDraftsList">
-      <div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">
-        Sign in to Google (Setup tab) to see cloud drafts.
+    <!-- v3.50: Cloud Drafts hidden by default behind a dropdown. Click the
+         header to expand/collapse. Heavier to load than local drafts (network
+         call), so collapsed-by-default also delays the cloudCall until the
+         user actually wants to see it. -->
+    <details id="cloudDraftsSection" style="margin-top:18px">
+      <summary style="cursor:pointer; padding:11px 14px; background:var(--bone); border:1px solid var(--line); border-radius:4px; display:flex; align-items:center; justify-content:space-between; font-family:Calibri,sans-serif; font-size:14px; color:var(--ink); list-style:none">
+        <span>☁️ Cloud Drafts <span id="cloudDraftsCount" style="color:var(--ink-soft); font-size:12px"></span></span>
+        <span style="display:flex; align-items:center; gap:8px">
+          <button type="button" class="small-btn" id="cloudRefreshBtn" onclick="event.stopPropagation(); event.preventDefault();">↻ Refresh</button>
+          <span id="cloudDraftsCaret" style="font-size:12px; color:var(--ink-soft)">▾</span>
+        </span>
+      </summary>
+      <div id="cloudDraftsList" style="margin-top:8px">
+        <div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">
+          Sign in to Google (Setup tab) to see cloud drafts.
+        </div>
       </div>
-    </div>
+    </details>
   </section>
 
   <!-- QUEUE VIEW -->
@@ -5845,8 +5854,11 @@ async function renderCloudDraftsList() {
     const result = await cloudCall('listDrafts', {});
     if (!result.ok) throw new Error(result.error || 'Failed to list drafts');
     const drafts = result.drafts || [];
+    // v3.50: update count badge in the section summary
+    const countEl = document.getElementById('cloudDraftsCount');
+    if (countEl) countEl.textContent = drafts.length ? `(${drafts.length})` : '';
     if (drafts.length === 0) {
-      wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">No cloud drafts yet.<br/><small>Fill in a form on Entry tab and tap ☁️ Push to save to cloud.</small></div>';
+      wrap.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px 10px; font-size:14px;">No cloud drafts yet.<br/><small>Fill in a form on Entry tab and tap Save Draft.</small></div>';
       return;
     }
     const myEmail = await getUserEmail();
@@ -5907,13 +5919,38 @@ const _origSetView = setView;
 setView = function(name) {
   _origSetView.apply(this, arguments);
   if (name === 'drafts') {
-    renderCloudDraftsList();
+    // v3.50: only auto-load cloud drafts if the section is already open
+    // (e.g., user previously expanded it). Otherwise wait for them to open
+    // it explicitly — saves a network call on tab visit.
+    const sec = document.getElementById('cloudDraftsSection');
+    if (sec && sec.open) {
+      renderCloudDraftsList();
+    }
   }
 };
 
 const cloudRefreshBtn = document.getElementById('cloudRefreshBtn');
 if (cloudRefreshBtn) {
-  cloudRefreshBtn.addEventListener('click', renderCloudDraftsList);
+  cloudRefreshBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // Refresh forces a reload even if section was already open
+    const sec = document.getElementById('cloudDraftsSection');
+    if (sec && !sec.open) sec.open = true; // open it so the user sees the result
+    renderCloudDraftsList();
+  });
+}
+
+// v3.50: caret flip + lazy load on expand
+const cloudDraftsSection = document.getElementById('cloudDraftsSection');
+if (cloudDraftsSection) {
+  cloudDraftsSection.addEventListener('toggle', () => {
+    const caret = document.getElementById('cloudDraftsCaret');
+    if (caret) caret.textContent = cloudDraftsSection.open ? '▴' : '▾';
+    if (cloudDraftsSection.open) {
+      renderCloudDraftsList();
+    }
+  });
 }
 
 /* =========================================================================
