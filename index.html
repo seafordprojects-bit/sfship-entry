@@ -1225,6 +1225,27 @@
 
   <!-- QUEUE VIEW -->
   <section class="view" id="view-queue">
+
+    <!-- v3.50: local queue banner — moved to TOP so failures are visible
+         without scrolling past the shared Drive list. Hidden unless local
+         entries exist. Tap to expand and see Retry / Back to Draft / Delete. -->
+    <div id="localQueueBanner" style="display:none; margin-bottom:14px; border:1px solid var(--line); border-radius:4px; overflow:hidden">
+      <button type="button" id="localQueueBannerHead" style="
+        width:100%; padding:11px 14px; background:var(--bone);
+        border:none; cursor:pointer; display:flex; align-items:center;
+        justify-content:space-between; font-family:Calibri,sans-serif;
+        font-size:14px; color:var(--ink); gap:8px; text-align:left">
+        <span><strong id="localQueueBannerCount">0</strong> entr<span id="localQueueBannerSuffix">y</span> waiting to sync</span>
+        <span id="localQueueBannerCaret" style="font-size:12px; color:var(--ink-soft)">▾</span>
+      </button>
+      <div id="localQueueBannerBody" style="display:none; padding:8px 10px 4px; background:var(--paper)">
+        <div style="display:flex; gap:8px; margin-bottom:8px">
+          <button class="btn btn-secondary" id="clearSyncedBtn" style="font-size:13px; padding:6px 10px">Clear Synced</button>
+        </div>
+        <div id="queueList"></div>
+      </div>
+    </div>
+
     <div class="helper">
       Everything anyone on the team has synced to the shared Drive folder. Use this to avoid double-syncing the same vessel.
     </div>
@@ -1253,27 +1274,6 @@
     </div>
 
     <div id="driveQueueList"></div>
-
-    <!-- v3.50: local queue banner. Hidden unless there are pending/error/
-         syncing entries. Tap to expand and see actions (Retry, Back to
-         Draft, Delete). Old "always-visible" queue moved into this
-         collapsible to keep the main view focused on shared Drive state. -->
-    <div id="localQueueBanner" style="display:none; margin-top:18px; border:1px solid var(--line); border-radius:4px; overflow:hidden">
-      <button type="button" id="localQueueBannerHead" style="
-        width:100%; padding:11px 14px; background:var(--bone);
-        border:none; cursor:pointer; display:flex; align-items:center;
-        justify-content:space-between; font-family:Calibri,sans-serif;
-        font-size:14px; color:var(--ink); gap:8px; text-align:left">
-        <span><strong id="localQueueBannerCount">0</strong> entr<span id="localQueueBannerSuffix">y</span> waiting to sync</span>
-        <span id="localQueueBannerCaret" style="font-size:12px; color:var(--ink-soft)">▾</span>
-      </button>
-      <div id="localQueueBannerBody" style="display:none; padding:8px 10px 4px; background:var(--paper)">
-        <div style="display:flex; gap:8px; margin-bottom:8px">
-          <button class="btn btn-secondary" id="clearSyncedBtn" style="font-size:13px; padding:6px 10px">Clear Synced</button>
-        </div>
-        <div id="queueList"></div>
-      </div>
-    </div>
   </section>
 
   <!-- SETTINGS VIEW (v3.36 PIN-protected + sign-in here) -->
@@ -4695,6 +4695,26 @@ async function trySync() {
         entry.perTabPdfs = result.perTabPdfs || [];
         delete entry.errorMsg;
         await dbPut(entry);
+
+        // v3.50: post-sync cleanup. Mark Complete completed successfully, so:
+        //   1. Delete the cloud draft (no longer needed — vessel is in Drive)
+        //   2. Delete the local entry (no longer needed — it's now a real
+        //      synced spreadsheet, visible in the Shared Drive list)
+        // Failure on either delete is non-fatal — the sync itself succeeded.
+        try {
+          const { projectNo } = getProjectAndVessel(entry.data || {});
+          if (projectNo) {
+            await cloudCall('deleteDraft', { projectNo: projectNo });
+          }
+        } catch (cleanupErr) {
+          console.warn('Cloud draft delete failed (sync succeeded, ignoring):', cleanupErr);
+        }
+        try {
+          await dbDelete(entry.id);
+        } catch (dbErr) {
+          console.warn('Local entry delete failed (sync succeeded, ignoring):', dbErr);
+        }
+
         okCount++;
       } catch (err) {
         entry.status = 'error';
@@ -4704,6 +4724,8 @@ async function trySync() {
       }
       renderQueue();
     }
+    // v3.50: re-render drafts so any successfully-synced entries vanish
+    renderDrafts();
     await refreshBadges();
     if (okCount > 0) toast(`Synced ${okCount} entr${okCount===1?'y':'ies'}`, 'success');
     if (failCount > 0) toast(`${failCount} failed — see Queue`, 'error');
@@ -4903,22 +4925,37 @@ async function renderQueue() {
   // entries. Synced entries also count so the user can find "Clear Synced".
   const banner = document.getElementById('localQueueBanner');
   const activeCount = all.filter(e => e.status === 'pending' || e.status === 'error' || e.status === 'syncing').length;
+  const errorCount = all.filter(e => e.status === 'error').length;
   if (banner) {
     if (all.length === 0) {
       banner.style.display = 'none';
     } else {
       banner.style.display = 'block';
-      const countEl = document.getElementById('localQueueBannerCount');
-      const suffixEl = document.getElementById('localQueueBannerSuffix');
       const headBtn = document.getElementById('localQueueBannerHead');
-      if (activeCount > 0) {
-        countEl.textContent = activeCount;
-        suffixEl.textContent = activeCount === 1 ? 'y' : 'ies';
-        // Active items: change banner text to be more urgent
+      const body = document.getElementById('localQueueBannerBody');
+      const caret = document.getElementById('localQueueBannerCaret');
+      // Reset state classes
+      banner.style.borderColor = '';
+      headBtn.style.background = '';
+      headBtn.style.color = '';
+      if (errorCount > 0) {
+        // Red highlight for failures — jumps out at the top of the screen
+        banner.style.borderColor = 'var(--red)';
+        headBtn.style.background = 'var(--red)';
+        headBtn.style.color = 'var(--paper)';
+        headBtn.firstElementChild.innerHTML =
+          `⚠ <strong>${errorCount}</strong> sync${errorCount === 1 ? '' : 's'} failed · ${activeCount - errorCount > 0 ? (activeCount - errorCount) + ' pending' : 'tap to retry'}`;
+        // Auto-expand so the user sees the failed entries immediately
+        if (body.style.display !== 'block') {
+          body.style.display = 'block';
+          if (caret) caret.textContent = '▴';
+        }
+      } else if (activeCount > 0) {
+        // Pending but not failed yet — neutral, just informational
         headBtn.firstElementChild.innerHTML =
           `<strong>${activeCount}</strong> entr${activeCount === 1 ? 'y' : 'ies'} waiting to sync`;
       } else {
-        // Only synced items present
+        // Only synced items — quiet/collapsed
         headBtn.firstElementChild.innerHTML =
           `<strong>${all.length}</strong> entr${all.length === 1 ? 'y' : 'ies'} on this device (all synced)`;
       }
@@ -5078,12 +5115,49 @@ function renderDriveQueueList(sheets) {
       <div class="list-meta">Synced by <strong>${escapeHtml(who)}</strong> · ${escapeHtml(when)}</div>
       <div class="list-actions">
         <button data-drive-open="${escapeHtml(url)}">Open Sheet</button>
+        <button data-drive-regen="${escapeHtml(s.id)}" data-drive-name="${escapeHtml(s.name)}">↻ Regenerate PDFs</button>
       </div>
     </div>`;
   }).join('');
   list.querySelectorAll('button[data-drive-open]').forEach(b => {
     b.addEventListener('click', () => window.open(b.dataset.driveOpen, '_blank'));
   });
+  // v3.50: Regenerate PDFs button — re-runs the PDF pipeline on a synced
+  // sheet. Use after editing the synced spreadsheet directly to fix a
+  // mistake (e.g., wrong vessel measurement). Replaces all per-tab PDFs in
+  // the vessel folder with refreshed ones.
+  list.querySelectorAll('button[data-drive-regen]').forEach(b => {
+    b.addEventListener('click', () => regeneratePdfsViaApp(b.dataset.driveRegen, b.dataset.driveName, b));
+  });
+}
+
+async function regeneratePdfsViaApp(spreadsheetId, name, btn) {
+  if (!isOnline) { toast('Offline — can\'t regenerate', 'error'); return; }
+  if (!confirm(`Regenerate ALL PDFs for "${name}"?\n\nThis will replace the existing PDFs in the vessel folder. Old PDFs are lost.`)) return;
+
+  const origText = btn.textContent;
+  btn.textContent = '⟳ Regenerating…';
+  btn.disabled = true;
+  try {
+    const result = await cloudCall('regeneratePdfs', { spreadsheetId: spreadsheetId });
+    if (!result || !result.ok) {
+      throw new Error(result && result.error ? result.error : 'unknown error');
+    }
+    const n = (result.uploaded || []).length;
+    const errs = (result.errors || []).length;
+    if (errs > 0) {
+      toast(`Regenerated ${n} PDFs · ${errs} failed — check Apps Script logs`, 'info');
+    } else {
+      toast(`Regenerated ${n} PDFs ✓`, 'success');
+    }
+    // Refresh the shared list so modifiedTime is current
+    setTimeout(() => loadDriveQueueView(true), 1500);
+  } catch (err) {
+    toast('Regenerate failed: ' + (err.message || String(err)), 'error');
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
 }
 
 
