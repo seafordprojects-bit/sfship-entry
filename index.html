@@ -1841,11 +1841,11 @@ const SCHEMA = [
     type: 'vesselList',
     rowCount: 10,
     initialVisible: 3,
-    // v3.50: baseRow corrected from 5 to 11. The LIST OF VESSEL tab template
-    // has its data block at rows 11-20 (rows 1-10 hold the company header,
-    // address, column titles, etc). Previous baseRow:5 wrote vessel info to
-    // header rows and left leftover data in rows 11+ untouched.
-    baseRow: 11,
+    // v3.50: baseRow corrected to 10. The LIST OF VESSEL tab template has
+    // its data block at rows 10-19 (row 1-4 is the company header, row 5 is
+    // the current vessel name from SHIPS DATA, rows 6-9 are spacers/section
+    // headers). Vessel data fills rows 10 onward.
+    baseRow: 10,
     cols: {
       vesselName: 'A',
       company:    'B',
