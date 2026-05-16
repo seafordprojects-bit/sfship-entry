@@ -2960,11 +2960,10 @@ function countSectionFilled(sec) {
       if (el && el.value && el.value.trim()) filled++;
     }
   } else if (sec.type === 'workChecklist') {
-    total++;
-    const t = document.querySelector(`[data-check-name="workDone__typeRepair"]`);
-    if (t && t.querySelector('.check-pill.active')) filled++;
-    // v3.50: Job Order picker no longer counted — Primary is always on so the
-    // field would never block progress. Additional is optional, not required.
+    // v3.50: Type of Repair no longer counted (Regular Drydock is the default
+    // active state, so it would always be "filled" and the section would show
+    // 1/N progress even with zero user input). Job Order picker also not
+    // counted (Primary always on). Only the actual work item checkboxes count.
     for (const grp of sec.groups) for (const item of grp.items) {
       total++;
       const cb = document.querySelector(`.work-checkbox[data-check-name="${sec.id}__${item.id}"]`);
@@ -4904,8 +4903,9 @@ function countOverall(data) {
         total++; if ((data[`${sec.id}__${f.id}`] || '').toString().trim()) filled++;
       }
     } else if (sec.type === 'workChecklist') {
-      total++; if ((data['workDone__typeRepair'] || '').toString().trim()) filled++;
-      // v3.50: Job Order picker not counted (Primary always-on, Additional optional)
+      // v3.50: Type of Repair + Job Order pickers not counted (both have
+      // always-on defaults, so they'd inflate the progress count even with
+      // zero user input). Only actual work item checkboxes count.
       for (const grp of sec.groups) for (const item of grp.items) {
         total++; if ((data[`${sec.id}__${item.id}`] || '').toString().trim()) filled++;
       }
