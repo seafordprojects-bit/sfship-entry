@@ -4948,20 +4948,30 @@ async function renderDrafts() {
   // separate section below Local Drafts. Anything that matches a local draft
   // by project number is hidden from the remote section (already shown above).
   let remoteActiveDrafts = [];
+  let cloudFetchError = null;
+  let cloudFetchedTotal = null;  // total drafts returned by server, for diagnostic
   if (isOnline && accessToken) {
     try {
       const result = await cloudCall('listDrafts', {});
       if (result.ok) {
+        cloudFetchedTotal = (result.drafts || []).length;
         const localProjects = new Set(localDrafts.map(e =>
           ((e.data || {})['shipsData__projectNo'] || '').trim()
         ).filter(Boolean));
         remoteActiveDrafts = (result.drafts || [])
           .filter(d => !d.archivedAt)                       // active only
           .filter(d => !localProjects.has(d.projectNo));    // not already local
+      } else {
+        cloudFetchError = result.error || 'listDrafts returned not ok';
       }
     } catch (e) {
-      console.warn('renderDrafts: cloud list failed (continuing with local only):', e);
+      cloudFetchError = e.message || String(e);
+      console.warn('renderDrafts: cloud list failed:', e);
     }
+  } else if (!isOnline) {
+    cloudFetchError = 'offline';
+  } else if (!accessToken) {
+    cloudFetchError = 'not signed in to Google';
   }
 
   // --- LOCAL DRAFTS section ---
@@ -5001,10 +5011,24 @@ async function renderDrafts() {
   }
 
   // --- REMOTE ACTIVE DRAFTS section (assistant's in-progress work) ---
+  // v3.50: show this section even when empty, with diagnostic info — helps
+  // debug "why isn't my colleague's draft showing up" issues.
   const remoteSection = document.getElementById('remoteActiveDraftsSection');
   const remoteList = document.getElementById('remoteActiveDraftsList');
   if (remoteActiveDrafts.length === 0) {
-    if (remoteSection) remoteSection.style.display = 'none';
+    if (remoteSection) remoteSection.style.display = '';
+    let msg;
+    if (cloudFetchError) {
+      msg = `<div style="color:var(--red); font-size:13px; padding:10px;">⚠ Couldn't fetch cloud drafts: ${escapeHtml(cloudFetchError)}</div>`;
+    } else if (cloudFetchedTotal === 0) {
+      msg = `<div style="color:var(--ink-soft); font-size:13px; padding:10px;">No drafts on cloud yet.</div>`;
+    } else if (cloudFetchedTotal !== null) {
+      // Server returned drafts but none made it through the filters
+      msg = `<div style="color:var(--ink-soft); font-size:13px; padding:10px;">Cloud has ${cloudFetchedTotal} draft(s) but none active on other devices.<br/><small style="opacity:0.7">(Yours appear under Local Drafts; archived ones in Completed dropdown)</small></div>`;
+    } else {
+      msg = `<div style="color:var(--ink-soft); font-size:13px; padding:10px;">—</div>`;
+    }
+    remoteList.innerHTML = msg;
   } else {
     if (remoteSection) remoteSection.style.display = '';
     remoteList.innerHTML = remoteActiveDrafts.map(d => {
