@@ -3315,20 +3315,24 @@ async function saveEntry(asComplete) {
     if (isOnline) {
       try {
         const userEmail = await getUserEmail();
-        cloudResult = await cloudCall('saveDraft', {
+        const payload = {
           projectNo: projectNo,
           vesselName: vesselName,
           jsonBlob: JSON.stringify(data),
           userEmail: userEmail,
-          // v3.50 FIX: always release lock after Save Draft. Previously this
-          // was `inCloudLockMode` (only release when we held the lock), which
-          // had the side-effect of WRITING a lock on every fresh-form save
-          // (because the server wrote a lock whenever releaseLock=false).
-          // That made all saved drafts appear locked to other devices.
-          // Locks should only exist during active Pull & Edit sessions, NOT
-          // during regular form-saves.
           releaseLock: true
+        };
+        // v3.50 DIAGNOSTIC: log what's being sent so we can debug "cloud
+        // says ok but spreadsheet didn't update" scenarios.
+        console.log('[saveDraft] sending:', {
+          projectNo: payload.projectNo,
+          vesselName: payload.vesselName,
+          userEmail: payload.userEmail,
+          jsonBlobLength: payload.jsonBlob.length,
+          inCloudLockMode: inCloudLockMode
         });
+        cloudResult = await cloudCall('saveDraft', payload);
+        console.log('[saveDraft] response:', cloudResult);
       } catch (cloudErr) {
         console.warn('Cloud draft push failed (will retry later):', cloudErr);
         cloudResult = null;
