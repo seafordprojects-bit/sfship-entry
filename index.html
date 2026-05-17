@@ -5703,6 +5703,15 @@ document.addEventListener('focusin', (e) => {
     }, 50);
     return;
   }
+  // v3.50: close any other open recall dropdown before opening this one,
+  // so only one dropdown is ever visible at a time. Without this, focusing
+  // a new recall input leaves the previous field's dropdown floating.
+  const myFieldName = input.name;
+  document.querySelectorAll('.recall-dropdown.open').forEach(d => {
+    if (d.getAttribute('data-recall-dropdown') !== myFieldName) {
+      d.classList.remove('open');
+    }
+  });
   _recallActiveInput = input;
   _renderRecallDropdown(input);
 });
