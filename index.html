@@ -4963,6 +4963,30 @@ async function renderDrafts() {
         remoteActiveDrafts = (result.drafts || [])
           .filter(d => !d.archivedAt)                       // active only
           .filter(d => !localProjects.has(d.projectNo));    // not already local
+
+        // v3.50: for local drafts that ALSO exist in cloud (active), check
+        // if the cloud version is newer than the local copy. If so, expose
+        // a "Cloud has newer" indicator so the user knows to refresh.
+        const cloudByProject = {};
+        for (const d of (result.drafts || [])) {
+          if (!d.archivedAt) cloudByProject[d.projectNo] = d;
+        }
+        for (const e of localDrafts) {
+          const proj = ((e.data || {})['shipsData__projectNo'] || '').trim();
+          if (!proj) continue;
+          const cloudVer = cloudByProject[proj];
+          if (!cloudVer) continue;
+          const localMs = new Date(e.updatedAt || e.createdAt).getTime();
+          const cloudMs = new Date(cloudVer.lastModified).getTime();
+          // Cloud is newer if it's > 2 seconds ahead (avoids noise from
+          // small clock skews and the round-trip between save and listDrafts)
+          if (cloudMs - localMs > 2000) {
+            e._cloudNewer = {
+              editor: cloudVer.lastEditor || 'someone',
+              lastModified: cloudVer.lastModified
+            };
+          }
+        }
       } else {
         cloudFetchError = result.error || 'listDrafts returned not ok';
       }
@@ -4994,6 +5018,19 @@ async function renderDrafts() {
         const reason = e.cloudPushError === 'offline' ? 'offline' : 'will retry';
         cloudBadge = `<span style="font-size:11px; color:var(--ink-soft); margin-left:6px" title="Local only — ${escapeHtml(reason)}">☁ Local only</span>`;
       }
+      // v3.50: cloud-has-newer indicator. When another device saved this
+      // project more recently, surface a banner with a "Pull cloud version"
+      // action so the user can opt-in to discard local and grab cloud.
+      let cloudNewerBanner = '';
+      let pullBtn = '';
+      if (e._cloudNewer) {
+        const editor = e._cloudNewer.editor;
+        const when = new Date(e._cloudNewer.lastModified).toLocaleString();
+        cloudNewerBanner = `<div style="background:#fff7e6; border:1px solid #f0c674; padding:6px 8px; margin-top:6px; font-size:12px; color:#7a5c00; border-radius:3px;">
+          ⚠ Cloud has newer version from <strong>${escapeHtml(editor)}</strong> at ${escapeHtml(when)}
+        </div>`;
+        pullBtn = `<button class="primary" data-act="pull-cloud-newer" data-id="${e.id}" data-proj="${escapeHtml(proj)}">Pull cloud version</button>`;
+      }
       return `<div class="list-item draft" data-id="${e.id}">
         <div class="list-head">
           <span class="list-proj">${escapeHtml(proj)}</span>
@@ -5002,7 +5039,9 @@ async function renderDrafts() {
         <div class="list-vessel">${escapeHtml(vessel)}</div>
         <div class="list-meta">${escapeHtml(company)} · ${updated}</div>
         <div class="list-fill">${fillCount.filled}/${fillCount.total} fields</div>
+        ${cloudNewerBanner}
         <div class="list-actions">
+          ${pullBtn}
           <button class="primary" data-act="edit" data-id="${e.id}">Continue Editing</button>
           <button data-act="complete" data-id="${e.id}">Mark Complete</button>
           <button class="danger" data-act="delete" data-id="${e.id}">Delete</button>
@@ -5414,6 +5453,12 @@ async function onListAction(e) {
   } else if (act === 'resolve-duplicate') {
     // v3.50: open the replace-confirm modal for this entry
     openReplaceConfirmModal(entry);
+  } else if (act === 'pull-cloud-newer') {
+    // v3.50: cloud has a newer version for this project — confirm + pull.
+    const proj = e.currentTarget.dataset.proj;
+    const msg = `Pull the cloud version of "${proj}"?\n\nThis will REPLACE your local copy with the newer version from cloud. Any unsaved local edits will be lost.`;
+    if (!confirm(msg)) return;
+    await doPullDraft(proj, 'edit');
   }
 }
 
