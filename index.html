@@ -3310,17 +3310,13 @@ async function saveEntry(asComplete) {
     // When in cloud-lock editing mode (user pulled this draft from cloud and
     // holds the edit lock), pass releaseLock:true so a successful push frees
     // the lock for other devices to edit. In normal mode, lock stays as-is.
-    // v3.50: cloud-lock enforcement. If this entry was previously fetched
-    // from cloud (wasFromCloud=true) and the user isn't currently in cloud-
-    // lock mode (no Pull & Edit), DO NOT push the save to cloud. This
-    // prevents accidentally overwriting another device's edits.
-    //
-    // The user can still save locally; to push to cloud they need to use
-    // Pull & Edit in Cloud Drafts first (which acquires the lock).
+    // v3.50: every Save Draft pushes to cloud (last-writer-wins). Cloud lock
+    // is released on each save. Race condition with another device editing
+    // the same project is possible — both should verbally coordinate or use
+    // Pull & Edit when serial-editing is needed.
     const inCloudLockMode = !!cloudLockedProjectNo && !cloudReadOnly;
-    const skipCloudPush = !!entry.wasFromCloud && !inCloudLockMode;
     let cloudResult = null;
-    if (isOnline && !skipCloudPush) {
+    if (isOnline) {
       try {
         const userEmail = await getUserEmail();
         const payload = {
@@ -3333,8 +3329,7 @@ async function saveEntry(asComplete) {
         console.log('[saveDraft] sending:', {
           projectNo: payload.projectNo,
           jsonBlobLength: payload.jsonBlob.length,
-          inCloudLockMode: inCloudLockMode,
-          wasFromCloud: !!entry.wasFromCloud
+          inCloudLockMode: inCloudLockMode
         });
         cloudResult = await cloudCall('saveDraft', payload);
         console.log('[saveDraft] response:', cloudResult);
@@ -3342,29 +3337,18 @@ async function saveEntry(asComplete) {
         console.warn('Cloud draft push failed (will retry later):', cloudErr);
         cloudResult = null;
       }
-    } else if (skipCloudPush) {
-      console.log('[saveDraft] SKIPPING cloud push — was-from-cloud + no lock');
     }
 
     const cloudOk = cloudResult && cloudResult.ok;
-    // v3.50: only flip cloudSynced/needsCloudPush when we actually attempted
-    // a push. Skipped pushes don't change the existing state.
-    if (!skipCloudPush) {
-      entry.cloudSynced = !!cloudOk;
-      entry.needsCloudPush = !cloudOk;
-      entry.lastCloudPushAt = cloudOk ? new Date().toISOString() : (entry.lastCloudPushAt || null);
-      if (cloudOk) delete entry.cloudPushError;
-      else if (cloudResult && cloudResult.error) entry.cloudPushError = cloudResult.error;
-      else if (!isOnline) entry.cloudPushError = 'offline';
-      // Mark as fromCloud once first push succeeds — future saves will need
-      // Pull & Edit to update cloud again.
-      if (cloudOk) entry.wasFromCloud = true;
-    }
+    entry.cloudSynced = !!cloudOk;
+    entry.needsCloudPush = !cloudOk;
+    entry.lastCloudPushAt = cloudOk ? new Date().toISOString() : (entry.lastCloudPushAt || null);
+    if (cloudOk) delete entry.cloudPushError;
+    else if (cloudResult && cloudResult.error) entry.cloudPushError = cloudResult.error;
+    else if (!isOnline) entry.cloudPushError = 'offline';
     await dbPut(entry);
 
-    if (skipCloudPush) {
-      toast('Saved locally only — use Pull & Edit in Cloud Drafts to update cloud', 'info');
-    } else if (cloudOk) {
+    if (cloudOk) {
       if (inCloudLockMode) {
         cloudLockedProjectNo = null;
         cloudReadOnly = false;
@@ -5004,14 +4988,7 @@ async function renderDrafts() {
       const updated = new Date(e.updatedAt || e.createdAt).toLocaleString();
       const fillCount = countOverall(d);
       let cloudBadge = '';
-      let needsLockNote = '';
-      if (e.wasFromCloud) {
-        // v3.50: this draft came from cloud (Pull & Edit or first cloud
-        // save). Save Draft will only update local; cloud requires
-        // re-acquiring the lock via Pull & Edit.
-        cloudBadge = `<span style="font-size:11px; color:var(--ink-soft); margin-left:6px" title="From cloud — use Pull & Edit to update cloud">☁ Cloud (local only)</span>`;
-        needsLockNote = `<div style="font-size:11px; color:var(--ink-soft); margin-top:3px; font-style:italic">⚠ Save updates local only. To update cloud, use Pull & Edit in Cloud Drafts.</div>`;
-      } else if (e.cloudSynced) {
+      if (e.cloudSynced) {
         cloudBadge = `<span style="font-size:11px; color:var(--green); margin-left:6px" title="Pushed to cloud">☁ Cloud ✓</span>`;
       } else if (e.needsCloudPush) {
         const reason = e.cloudPushError === 'offline' ? 'offline' : 'will retry';
@@ -5025,7 +5002,6 @@ async function renderDrafts() {
         <div class="list-vessel">${escapeHtml(vessel)}</div>
         <div class="list-meta">${escapeHtml(company)} · ${updated}</div>
         <div class="list-fill">${fillCount.filled}/${fillCount.total} fields</div>
-        ${needsLockNote}
         <div class="list-actions">
           <button class="primary" data-act="edit" data-id="${e.id}">Continue Editing</button>
           <button data-act="complete" data-id="${e.id}">Mark Complete</button>
