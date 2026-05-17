@@ -5029,7 +5029,10 @@ async function renderDrafts() {
         cloudNewerBanner = `<div style="background:#fff7e6; border:1px solid #f0c674; padding:6px 8px; margin-top:6px; font-size:12px; color:#7a5c00; border-radius:3px;">
           ⚠ Cloud has newer version from <strong>${escapeHtml(editor)}</strong> at ${escapeHtml(when)}
         </div>`;
-        pullBtn = `<button class="primary" data-act="pull-cloud-newer" data-id="${e.id}" data-proj="${escapeHtml(proj)}">Pull cloud version</button>`;
+        // v3.50: inline onclick. Calls global handler to avoid any
+        // event-listener attachment issues.
+        const escapedProj = escapeHtml(proj).replace(/'/g, "\\'");
+        pullBtn = `<button type="button" class="primary" onclick="pullCloudNewer('${escapedProj}')">Pull cloud version</button>`;
       }
       return `<div class="list-item draft" data-id="${e.id}">
         <div class="list-head">
@@ -5453,12 +5456,6 @@ async function onListAction(e) {
   } else if (act === 'resolve-duplicate') {
     // v3.50: open the replace-confirm modal for this entry
     openReplaceConfirmModal(entry);
-  } else if (act === 'pull-cloud-newer') {
-    // v3.50: cloud has a newer version for this project — confirm + pull.
-    const proj = e.currentTarget.dataset.proj;
-    const msg = `Pull the cloud version of "${proj}"?\n\nThis will REPLACE your local copy with the newer version from cloud. Any unsaved local edits will be lost.`;
-    if (!confirm(msg)) return;
-    await doPullDraft(proj, 'edit');
   }
 }
 
@@ -5819,6 +5816,15 @@ function closeCloudModal() {
   document.getElementById('cloudModal').style.display = 'none';
 }
 
+// v3.50: global handler for the "Pull cloud version" button on local
+// drafts where cloud has a newer copy. Inline onclick attribute calls this.
+window.pullCloudNewer = async function(projectNo) {
+  if (!projectNo) return;
+  const msg = `Pull the cloud version of "${projectNo}"?\n\nThis will REPLACE your local copy with the newer version from cloud. Any unsaved local edits will be lost.`;
+  if (!confirm(msg)) return;
+  await doPullDraft(projectNo, 'edit');
+};
+
 async function doPullDraft(projectNo, mode) {
   if (!isOnline) { toast('Offline — can\'t pull', 'error'); return; }
   if (!confirm(mode === 'readonly'
@@ -5968,7 +5974,7 @@ document.getElementById('cloudModal').addEventListener('click', (e) => {
   if (e.target.id === 'cloudModal') closeCloudModal();
 });
 
-console.log('[v3.37] All features ready');
+console.log('[v3.50] All features ready');
 
 /* =========================================================================
    v3.36 — PIN PROTECTION FOR API CONFIG + WIPE
