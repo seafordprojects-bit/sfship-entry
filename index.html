@@ -4957,6 +4957,43 @@ async function renderDrafts() {
       const result = await cloudCall('listDrafts', {});
       if (result.ok) {
         cloudFetchedTotal = (result.drafts || []).length;
+
+        // v3.50: AUTO-CLEANUP — delete local drafts whose project number
+        // matches a cloud row that's been archived (synced to Drive). Safety
+        // check: only delete if the local entry's updatedAt is OLDER than
+        // the cloud's archivedAt timestamp, so edits made after a Mark
+        // Complete elsewhere are NEVER silently wiped.
+        const archivedCloudByProject = {};
+        for (const d of (result.drafts || [])) {
+          if (d.archivedAt) archivedCloudByProject[d.projectNo] = d;
+        }
+        let cleanedCount = 0;
+        const cleanedNames = [];
+        for (const e of [...localDrafts]) {
+          const proj = ((e.data || {})['shipsData__projectNo'] || '').trim();
+          if (!proj) continue;
+          const cloudArchived = archivedCloudByProject[proj];
+          if (!cloudArchived) continue;
+          const localMs = new Date(e.updatedAt || e.createdAt).getTime();
+          const archivedMs = new Date(cloudArchived.archivedAt).getTime();
+          if (localMs <= archivedMs + 2000) {
+            // Local hasn't been touched since cloud was archived — safe to delete.
+            console.log(`[autoCleanup] deleting local draft "${proj}" (synced to Drive at ${cloudArchived.archivedAt})`);
+            await dbDelete(e.id);
+            cleanedCount++;
+            cleanedNames.push(proj);
+            // Remove from in-memory list so it doesn't show in this render
+            const idx = localDrafts.findIndex(x => x.id === e.id);
+            if (idx >= 0) localDrafts.splice(idx, 1);
+          } else {
+            console.log(`[autoCleanup] keeping local draft "${proj}" — local has newer edits than archive`);
+          }
+        }
+        if (cleanedCount > 0) {
+          toast(`Moved ${cleanedCount} completed project(s) to history: ${cleanedNames.join(', ')}`, 'info');
+          refreshBadges();
+        }
+
         const localProjects = new Set(localDrafts.map(e =>
           ((e.data || {})['shipsData__projectNo'] || '').trim()
         ).filter(Boolean));
