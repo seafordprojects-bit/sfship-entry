@@ -1904,7 +1904,8 @@ const AUTOCOMPLETE_FIELDS = new Set([
   'shipsData__companyName',
   'shipsData__companyAddress',
   'shipsData__transmittedBy',
-  'shipsData__position'
+  'shipsData__position',
+  'shipsData__vesselType'  // v3.50: dropdown of recent vessel types
 ]);
 
 let config = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
@@ -3554,6 +3555,12 @@ document.addEventListener('keydown', (e) => {
 // focuses the next one. Wraps to the first field if at the end. Skips
 // disabled, readonly, and hidden fields (offsetParent === null).
 function moveToNextFormField(current) {
+  // v3.50: close any open recall dropdowns (recent entries autocompletes)
+  // before moving focus. Otherwise the dropdown for the field we're leaving
+  // stays visible above the next field.
+  if (typeof _closeAllRecalls === 'function') {
+    try { _closeAllRecalls(); } catch (e) { /* best-effort */ }
+  }
   const selector = 'input[type="text"], input[type="number"], input[type="date"], input[type="tel"], input[type="email"], input[type="search"], input:not([type]), textarea';
   const all = Array.from(document.querySelectorAll(selector));
   const candidates = all.filter(el =>
