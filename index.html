@@ -3530,15 +3530,53 @@ document.addEventListener('focusout', (e) => {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 });
 
+// v3.50: Enter key navigation — tab-like move to next input/textarea.
+// Plain Enter advances to next field; Shift+Enter in a textarea inserts a
+// newline (default browser behavior). Excludes dropdowns/selects/buttons
+// and skips disabled or hidden inputs.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
   const t = e.target;
   if (!t || !t.matches) return;
-  if (t.matches('textarea')) return;
-  if (!t.matches('input')) return;
+  // Only act on text-like inputs and textareas
+  const isTextInput = t.matches('input[type="text"], input[type="number"], input[type="date"], input[type="tel"], input[type="email"], input[type="search"], input:not([type])');
+  const isTextarea = t.matches('textarea');
+  if (!isTextInput && !isTextarea) return;
+  // Allow Shift+Enter to keep its native behavior (newline in textarea)
+  if (isTextarea && e.shiftKey) return;
+  // Otherwise advance to the next field
   e.preventDefault();
-  if (typeof t.blur === 'function') t.blur();
+  moveToNextFormField(t);
 });
+
+// Tab-like next-field navigation. Builds an ordered list of all focusable
+// text inputs and textareas in DOM order, finds the current one, and
+// focuses the next one. Wraps to the first field if at the end. Skips
+// disabled, readonly, and hidden fields (offsetParent === null).
+function moveToNextFormField(current) {
+  const selector = 'input[type="text"], input[type="number"], input[type="date"], input[type="tel"], input[type="email"], input[type="search"], input:not([type]), textarea';
+  const all = Array.from(document.querySelectorAll(selector));
+  const candidates = all.filter(el =>
+    !el.disabled &&
+    !el.readOnly &&
+    el.offsetParent !== null  // skip hidden/collapsed fields
+  );
+  if (candidates.length === 0) return;
+  const idx = candidates.indexOf(current);
+  // If current isn't in the list (shouldn't happen) or it's the last one,
+  // wrap to the first field.
+  const nextIdx = (idx >= 0 && idx < candidates.length - 1) ? idx + 1 : 0;
+  const next = candidates[nextIdx];
+  if (next) {
+    next.focus();
+    // Select existing text so typing replaces; nicer UX for date/number tweaks.
+    if (typeof next.select === 'function') {
+      try { next.select(); } catch (e) { /* some input types don't support select */ }
+    }
+    // Scroll into view in case the next field is below the fold
+    next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
 
 function autoFillScheduleFromDate(isoDate) {
   if (!isoDate) return;
