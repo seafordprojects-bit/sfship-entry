@@ -5794,7 +5794,47 @@ async function doPullDraft(projectNo, mode) {
     let parsed = {};
     try { parsed = JSON.parse(result.jsonBlob || '{}'); } catch (e) { parsed = {}; }
 
-    editingId = null;
+    // v3.50: create a local draft entry for the pulled cloud draft. Without
+    // this, the subsequent Save Draft can't find an existing local row (the
+    // dedup lookup by project number returns nothing because no local row
+    // exists yet), so it creates a new local entry on save. Worse, if the
+    // user later edits the project number field, the cloud save would write
+    // to a DIFFERENT cloud row, leaving the original row stale.
+    //
+    // By creating the local entry NOW with the pulled data, we anchor
+    // editingId so all subsequent saves update the SAME local entry, which
+    // then pushes to cloud with the original projectNo.
+    let pulledEntryId = null;
+    if (mode === 'edit') {
+      const projectNoFromBlob = (parsed['shipsData__projectNo'] || projectNo || '').trim();
+      const all = await dbAll();
+      let existingLocal = all.find(e =>
+        e.status === 'draft' && e.data &&
+        ((e.data['shipsData__projectNo'] || '').trim() === projectNoFromBlob)
+      );
+      if (existingLocal) {
+        existingLocal.data = parsed;
+        existingLocal.updatedAt = new Date().toISOString();
+        existingLocal.cloudSynced = true;
+        existingLocal.needsCloudPush = false;
+        await dbPut(existingLocal);
+        pulledEntryId = existingLocal.id;
+      } else {
+        const newEntry = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2,8),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          status: 'draft',
+          data: parsed,
+          cloudSynced: true,
+          needsCloudPush: false
+        };
+        await dbPut(newEntry);
+        pulledEntryId = newEntry.id;
+      }
+    }
+
+    editingId = pulledEntryId;  // anchor editing to the pulled local entry
     clearForm();
     fillFormData(parsed);
 
