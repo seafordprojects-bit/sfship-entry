@@ -1555,7 +1555,7 @@ const SCHEMA = [
     sheet: 'SHIPS DATA',
     desc: 'Request and drydocking timeline.',
     fields: [
-      { id: 'dateRequested',     label: 'Date Requested',        cell: 'B7',  type: 'date', dateAsText: true },
+      { id: 'dateRequested',     label: 'Date Requested',        cell: 'B7',  type: 'date', dateAsText: true, hidden: true },
       { id: 'ordinalDate',       label: 'Ordinal Date',          cell: 'B8',  type: 'text', placeholder: '27th',          readonly: true, hidden: true },
       { id: 'monthYear',         label: 'Month & Year',          cell: 'B9',  type: 'text', placeholder: 'March 2026',    readonly: true, hidden: true },
       { id: 'arrivalDate',       label: 'Arrival Date',          cell: 'B10', type: 'date' },
@@ -3241,8 +3241,35 @@ function clearForm() {
   // v3.40: reset vessel list back to 3 visible rows
   _setVesselListVisibleCount(3);
   _refreshVesselListVisibility();
+  // v3.50: Work Done defaults are NOT applied here. They fire when the user
+  // starts encoding identifying info (projectNo or vesselName) — see the
+  // input listener that calls applyWorkDoneDefaults() conditionally.
   resetSectionStatuses();
   updateAllProgress();
+}
+
+// v3.50: pre-tick the standard Work Done items so the user only needs to
+// adjust the unusual ones. Called from clearForm() — runs on a fresh entry.
+// fillFormData (which loads draft data) will overwrite these as needed.
+function applyWorkDoneDefaults() {
+  const defaultIds = [
+    // No. 1 — Dock Works
+    'workDone__w1_dock',     // Drydocking and Undocking of Vessel
+    'workDone__w1_blocks',   // Preparation & Installation of blocks
+    // No. 2 — General Services (all EXCEPT chain calibration)
+    'workDone__w2_predock',  // Conduct pre docking survey
+    'workDone__w2_inspect',  // Hull inspection
+    'workDone__w2_moor',     // Mooring & Unmooring of vessel
+    'workDone__w2_ut',       // Ultrasonic Thickness Gauging
+    'workDone__w2_shellexp', // Renewal of Shell Expansion Plan
+    'workDone__w2_loadline', // Load Line Calibration
+    // No. 3 — Hull Preservation
+    'workDone__w3_barnacles' // Scrapping of Barnacles
+  ];
+  for (const checkName of defaultIds) {
+    const box = document.querySelector(`.work-checkbox[data-check-name="${checkName}"]`);
+    if (box) box.classList.add('checked');
+  }
 }
 
 function getProjectAndVessel(data) {
@@ -3256,6 +3283,25 @@ function getProjectAndVessel(data) {
    SAVE / LOAD ENTRY
    ========================================================================= */
 async function saveEntry(asComplete) {
+  // v3.50: Mark Complete auto-fills Date Requested with TODAY's date if
+  // the field is empty. The field is hidden from the form so users don't
+  // have to fill it manually — the date of completion IS the date requested.
+  // We also trigger the auto-fill logic for ordinalDate/monthYear since
+  // dateRequested is normally the trigger for those derived fields.
+  if (asComplete) {
+    const dateReqInput = document.querySelector('[name="vesselSchedule__dateRequested"]');
+    if (dateReqInput && !dateReqInput.value) {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, '0');
+      const d = String(today.getDate()).padStart(2, '0');
+      dateReqInput.value = `${y}-${m}-${d}`;
+      if (typeof autoFillScheduleFromDate === 'function') {
+        try { autoFillScheduleFromDate(dateReqInput.value); } catch (e) { /* best-effort */ }
+      }
+    }
+  }
+
   const data = collectFormData();
   const { projectNo, vesselName } = getProjectAndVessel(data);
   if (!projectNo || !vesselName) {
@@ -3467,18 +3513,194 @@ $('#cancelEditBtn').addEventListener('click', async () => {
 });
 
 $('#saveDraftBtn').addEventListener('click', () => saveEntry(false));
-$('#completeBtn').addEventListener('click', () => {
-  if (!confirm('Mark this entry as complete? It will no longer appear in Drafts and will upload when online.')) return;
+$('#completeBtn').addEventListener('click', async () => {
+  // v3.50: validate required fields before Mark Complete. Shows a checklist
+  // modal of missing fields with Cancel / Mark Complete Anyway options.
+  const missing = validateRequiredForComplete();
+  if (missing.totalCount > 0) {
+    const proceed = await showMissingFieldsModal(missing);
+    if (!proceed) return;
+  } else {
+    if (!confirm('Mark this entry as complete? It will no longer appear in Drafts and will upload when online.')) return;
+  }
   saveEntry(true);
 });
 
+// v3.50: required-fields spec for Mark Complete validation.
+// Each group describes a chunk that gets shown together in the modal if any
+// of its fields are missing. The `fieldName` matches collectFormData() keys.
+const MARK_COMPLETE_REQUIRED = [
+  {
+    section: 'Ships Data',
+    sectionDetailsId: 'shipsData',
+    fields: [
+      { name: 'shipsData__projectNo',      label: 'Project No.' },
+      { name: 'shipsData__vesselName',     label: 'Name of Vessel' },
+      { name: 'shipsData__companyName',    label: 'Company Name' },
+      { name: 'shipsData__companyAddress', label: 'Company Address' },
+      { name: 'shipsData__loa',            label: 'LOA' },
+      { name: 'shipsData__breadth',        label: 'Breadth' },
+      { name: 'shipsData__depth',          label: 'Depth' },
+      { name: 'shipsData__grt',            label: 'GRT' },
+      { name: 'shipsData__vesselType',     label: 'Type of Vessel' },
+      { name: 'shipsData__transmittedBy',  label: 'Transmitted By' },
+      { name: 'shipsData__position',       label: 'Position' }
+    ]
+  },
+  {
+    section: 'Vessel Schedule',
+    sectionDetailsId: 'vesselSchedule',
+    fields: [
+      { name: 'vesselSchedule__arrivalDate',   label: 'Arrival Date' },
+      { name: 'vesselSchedule__dockingDate',   label: 'Docking Date' },
+      { name: 'vesselSchedule__undockingDate', label: 'Undocking Date' }
+    ]
+  },
+  {
+    section: 'Load Line',
+    sectionDetailsId: 'loadLineCal',
+    fields: [
+      { name: 'loadLineCal__tropical',   label: 'Tropical (mm)' },
+      { name: 'loadLineCal__summer',     label: 'Summer (mm)' },
+      { name: 'loadLineCal__mmAboveS',   label: 'mm above (S)' },
+      { name: 'loadLineCal__freshWater', label: 'Fresh water (mm)' }
+    ]
+  }
+];
+
+// v3.50: validate required fields. Returns { groups: [...], totalCount: N }
+// where each group has the section name + the missing field labels.
+function validateRequiredForComplete() {
+  const result = { groups: [], totalCount: 0 };
+  for (const spec of MARK_COMPLETE_REQUIRED) {
+    const missingInSection = [];
+    for (const f of spec.fields) {
+      const el = document.querySelector(`[name="${f.name}"]`);
+      const val = el ? (el.value || '').trim() : '';
+      if (!val) missingInSection.push({ ...f, sectionDetailsId: spec.sectionDetailsId });
+    }
+    if (missingInSection.length > 0) {
+      result.groups.push({
+        section: spec.section,
+        sectionDetailsId: spec.sectionDetailsId,
+        fields: missingInSection
+      });
+      result.totalCount += missingInSection.length;
+    }
+  }
+  // Test Report: Bottom Plate requires at least one of bp_replated or
+  // bp_existing to be marked (passed/failed/na — any non-empty state).
+  // Test Report uses .check-trio pills with .active class on the chosen pill.
+  function bpItemMarked(itemId) {
+    const trio = document.querySelector(`.check-trio[data-check-name="testReport__${itemId}"]`);
+    if (!trio) return false;
+    return !!trio.querySelector('.check-pill.active');
+  }
+  const anyBpMarked = bpItemMarked('bp_replated') || bpItemMarked('bp_existing');
+  if (!anyBpMarked) {
+    result.groups.push({
+      section: 'Test Report — Bottom Plate',
+      sectionDetailsId: 'testReport',
+      fields: [{ label: 'Mark Replated Areas or Existing Plates (P / F / —)' }]
+    });
+    result.totalCount += 1;
+  }
+  return result;
+}
+
+// v3.50: show modal listing missing required fields. Returns a Promise that
+// resolves to true if user clicks "Mark Complete Anyway", false if Cancel.
+function showMissingFieldsModal(missing) {
+  return new Promise(resolve => {
+    let modal = document.getElementById('missingFieldsModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'missingFieldsModal';
+      modal.style.cssText = 'display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:200; align-items:center; justify-content:center; padding:14px';
+      document.body.appendChild(modal);
+    }
+    const groupsHtml = missing.groups.map(g => `
+      <div style="margin-bottom:10px">
+        <div style="font-weight:600; font-size:13px; color:var(--ink); margin-bottom:4px">${escapeHtml(g.section)}:</div>
+        <ul style="margin:0 0 0 18px; padding:0; font-size:13px; color:var(--ink-soft)">
+          ${g.fields.map(f => `<li>${escapeHtml(f.label)}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+    modal.innerHTML = `
+      <div style="background:var(--paper); border:1px solid var(--line); border-radius:6px; max-width:500px; width:100%; max-height:90vh; overflow-y:auto; padding:20px; font-family:Calibri,sans-serif">
+        <div style="font-size:18px; font-weight:600; color:var(--red); margin-bottom:8px">⚠ Missing Required Fields</div>
+        <div style="font-size:13px; color:var(--ink-soft); margin-bottom:14px">
+          ${missing.totalCount} required field${missing.totalCount === 1 ? '' : 's'} not filled.
+        </div>
+        <div style="background:var(--bone); border:1px solid var(--line); border-radius:3px; padding:10px; margin-bottom:14px">
+          ${groupsHtml}
+        </div>
+        <div style="font-size:12px; color:var(--ink-soft); margin-bottom:14px; font-style:italic">
+          Tap <strong>Cancel</strong> to fix them, or <strong>Mark Complete Anyway</strong> to proceed.
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end">
+          <button type="button" class="btn btn-secondary" id="mfm-cancel" style="padding:8px 14px">Cancel</button>
+          <button type="button" class="btn btn-danger" id="mfm-anyway" style="padding:8px 14px">Mark Complete Anyway</button>
+        </div>
+      </div>
+    `;
+    modal.style.display = 'flex';
+    document.getElementById('mfm-cancel').onclick = () => {
+      modal.style.display = 'none';
+      // Open the first section with a missing field, scroll to it.
+      const first = missing.groups[0];
+      if (first) {
+        const det = document.querySelector(`details[data-section-id="${first.sectionDetailsId}"]`);
+        if (det) {
+          det.open = true;
+          const firstField = first.fields[0];
+          const el = firstField && firstField.name ? document.querySelector(`[name="${firstField.name}"]`) : null;
+          if (el) {
+            setTimeout(() => {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              if (typeof el.focus === 'function') el.focus();
+            }, 100);
+          } else {
+            setTimeout(() => det.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+          }
+        }
+      }
+      resolve(false);
+    };
+    document.getElementById('mfm-anyway').onclick = () => {
+      modal.style.display = 'none';
+      resolve(true);
+    };
+  });
+}
+
 document.addEventListener('input', (e) => {
-  if (e.target.matches('[name="shipsData__projectNo"], [name="shipsData__vesselName"]')) updateDraftBar();
+  if (e.target.matches('[name="shipsData__projectNo"], [name="shipsData__vesselName"]')) {
+    updateDraftBar();
+    // v3.50: when the user starts encoding identifying info (projectNo or
+    // vesselName) on what looks like a NEW entry — no default work-done
+    // items checked yet AND no other work-done items checked either — apply
+    // the standard defaults. Safe: if the user already unchecked any
+    // default OR pulled in saved data, defaults won't re-fire.
+    if (e.target.value.trim().length > 0 && _shouldApplyWorkDefaults()) {
+      applyWorkDoneDefaults();
+      updateAllProgress();
+    }
+  }
   if (e.target.closest('#entryForm')) updateAllProgress();
   if (e.target.matches('[name="vesselSchedule__dateRequested"]')) {
     autoFillScheduleFromDate(e.target.value);
   }
 });
+
+// v3.50: gate for applyWorkDoneDefaults trigger from Ships Data typing.
+// Returns true ONLY when NO work-done checkbox in the entire section is
+// checked — i.e. the user hasn't touched it yet. As soon as ANY box is
+// checked (default or manual), this returns false and won't re-fire.
+function _shouldApplyWorkDefaults() {
+  return !document.querySelector('.work-checkbox.checked');
+}
 
 document.addEventListener('focusin', (e) => {
   const el = e.target;
@@ -5519,6 +5741,29 @@ async function onListAction(e) {
     loadEntryForEdit(id);
   } else if (act === 'complete') {
     if (!confirm('Mark complete? It will sync when online.')) return;
+    // v3.50: auto-fill Date Requested with TODAY if empty. The field is
+    // hidden from the form; Mark Complete is the trigger that stamps the
+    // date. Derived fields (ordinalDate, monthYear) are filled here too.
+    entry.data = entry.data || {};
+    if (!entry.data['vesselSchedule__dateRequested']) {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, '0');
+      const d = String(today.getDate()).padStart(2, '0');
+      entry.data['vesselSchedule__dateRequested'] = `${y}-${m}-${d}`;
+      // Derive the read-only ordinalDate ("17th") and monthYear ("May 2026")
+      // strings — same logic as autoFillScheduleFromDate but applied directly
+      // to the entry data object since the form isn't loaded right now.
+      const dayNum = today.getDate();
+      const suffix = (n => {
+        if (n >= 11 && n <= 13) return 'th';
+        const last = n % 10;
+        return last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th';
+      })(dayNum);
+      entry.data['vesselSchedule__ordinalDate'] = `${dayNum}${suffix}`;
+      const monthName = today.toLocaleString('en-US', { month: 'long' });
+      entry.data['vesselSchedule__monthYear'] = `${monthName} ${y}`;
+    }
     entry.status = 'pending'; entry.updatedAt = new Date().toISOString();
     await dbPut(entry); renderDrafts(); renderQueue(); refreshBadges();
     if (isOnline && accessToken) trySync();
